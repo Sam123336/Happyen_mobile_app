@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:happyn_mobile/core/data/demo_images.dart';
+import 'package:happyn_mobile/core/map/happyn_map.dart';
+import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
@@ -8,16 +11,16 @@ import 'package:happyn_mobile/features/event/presentation/event_detail_screen.da
 
 /// "Living City — Nighttime": the flat grid void with the orbiting diorama
 /// and the Temporal Control segmented pill.
-class NightCityScreen extends StatefulWidget {
+class NightCityScreen extends ConsumerStatefulWidget {
   const NightCityScreen({required this.slot, super.key});
 
   final String slot;
 
   @override
-  State<NightCityScreen> createState() => _NightCityScreenState();
+  ConsumerState<NightCityScreen> createState() => _NightCityScreenState();
 }
 
-class _NightCityScreenState extends State<NightCityScreen> {
+class _NightCityScreenState extends ConsumerState<NightCityScreen> {
   static const _controls = <(String, IconData)>[
     ('NOW', Icons.schedule),
     ('TONIGHT', Icons.dark_mode),
@@ -32,7 +35,13 @@ class _NightCityScreenState extends State<NightCityScreen> {
       backgroundColor: AppColors.deepInk,
       body: Stack(
         children: [
-          const Positioned.fill(child: _MapGrid()),
+          Positioned.fill(
+            child: HappynMap(
+              centre: ref.watch(searchCentreProvider).value ?? bengaluruCentre,
+              fallback: const _MapGrid(),
+              light: MapLight.night,
+            ),
+          ),
           Positioned.fill(
             child: Center(
               child: Transform.translate(

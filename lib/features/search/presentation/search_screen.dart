@@ -1,18 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:happyn_mobile/core/data/demo_images.dart';
+import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
+import 'package:happyn_mobile/features/places/domain/place.dart';
 
-/// "Search & Filter — Precision Discovery".
-class SearchScreen extends StatefulWidget {
+/// "Search & Filter — Precision Discovery", backed by `GET /v1/places/search`.
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen> {
   static const _filters = <String>[
     'Electric',
     'Underground',
@@ -20,15 +25,53 @@ class _SearchScreenState extends State<SearchScreen> {
     'Late Night',
     'Rooftop',
   ];
-  static const _recent = <(String, String)>[
-    ('The Blind Pig', 'Speakeasy • Soho'),
-    ('Neon Dream', 'Club • Downtown'),
-  ];
 
-  int _filter = 0;
+  /// Long enough that typing a word is one request, short enough to feel live.
+  static const _debounceDelay = Duration(milliseconds: 350);
+
+  final _controller = TextEditingController();
+  final _recent = <String>[];
+
+  Timer? _debounce;
+  int? _filter;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTyped(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(_debounceDelay, () => _search(value, filter: null));
+  }
+
+  void _search(String value, {required int? filter}) {
+    if (!mounted) return;
+    setState(() {
+      _filter = filter;
+      _query = value.trim();
+      if (_query.isNotEmpty) {
+        _recent
+          ..remove(_query)
+          ..insert(0, _query);
+        if (_recent.length > 5) _recent.removeLast();
+      }
+    });
+  }
+
+  void _searchFor(String value, {int? filter}) {
+    _debounce?.cancel();
+    _controller.text = value;
+    _search(value, filter: filter);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final results = ref.watch(placeSearchProvider(_query));
+
     return Scaffold(
       backgroundColor: AppColors.primaryContainer,
       body: Stack(
@@ -46,7 +89,11 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _SearchField(),
+                    _SearchField(
+                      controller: _controller,
+                      onChanged: _onTyped,
+                      onSubmitted: (value) => _searchFor(value),
+                    ),
                     const SizedBox(height: 32),
                     const _SectionLabel('QUICK FILTERS'),
                     const SizedBox(height: 16),
@@ -56,54 +103,56 @@ class _SearchScreenState extends State<SearchScreen> {
                         itemBuilder: (context, index) => _QuickFilter(
                           active: index == _filter,
                           label: _filters[index],
-                          onTap: () => setState(() => _filter = index),
+                          onTap: () => index == _filter
+                              ? _searchFor('')
+                              : _searchFor(_filters[index], filter: index),
                         ),
                         itemCount: _filters.length,
                         scrollDirection: Axis.horizontal,
                         separatorBuilder: (_, _) => const SizedBox(width: 12),
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    const _SectionLabel('RECENT SEARCHES'),
-                    const SizedBox(height: 16),
-                    for (final (title, subtitle) in _recent) ...[
-                      _RecentRow(subtitle: subtitle, title: title),
+                    if (_recent.isNotEmpty) ...[
+                      const SizedBox(height: 32),
+                      const _SectionLabel('RECENT SEARCHES'),
                       const SizedBox(height: 16),
+                      for (final term in _recent) ...[
+                        _RecentRow(
+                          onRemove: () => setState(() => _recent.remove(term)),
+                          onTap: () => _searchFor(term),
+                          title: term,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ],
                     const SizedBox(height: 32),
-                    const _SectionLabel('TRENDING DESTINATIONS'),
+                    _SectionLabel(_query.isEmpty ? 'NEARBY NOW' : 'RESULTS'),
                     const SizedBox(height: 16),
-                    _TrendingCard(
-                      imageUrl: DemoImages.search[1],
-                      subtitle: 'Underground Club • 0.5mi',
-                      title: 'The Vault',
-                      trailing: Row(
-                        children: [
-                          AvatarStack(
-                            borderColor: AppColors.primaryContainer,
-                            borderWidth: 1,
-                            overlap: 8,
-                            size: 20,
-                            urls: DemoImages.search.sublist(2, 4),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Priya and 4 others here',
-                            style: AppText.labelSm.copyWith(
-                              color: AppColors.onSurfaceVariant,
-                              fontSize: 10,
+                    results.when(
+                      data: (places) => places.isEmpty
+                          ? const _SearchMessage('Nothing here yet.')
+                          : Column(
+                              children: [
+                                for (final place in places) ...[
+                                  _PlaceCard(place: place),
+                                  const SizedBox(height: 16),
+                                ],
+                              ],
                             ),
+                      error: (_, _) => const _SearchMessage(
+                        'Places are unavailable right now.',
+                      ),
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.secondary,
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const _TrendingCard(
-                      imageIndex: 4,
-                      subtitle: 'Rooftop Lounge • 1.2mi',
-                      title: 'The Edition',
-                      trailing: _VerifiedChip(),
-                    ),
+                    const SizedBox(height: 8),
+                    const _PoweredByFoursquare(),
                   ],
                 ),
               ),
@@ -160,7 +209,15 @@ class _SearchHeader extends StatelessWidget {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField();
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final ValueChanged<String> onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -170,6 +227,7 @@ class _SearchField extends StatelessWidget {
         color: AppColors.surfaceContainer,
       ),
       child: TextField(
+        controller: controller,
         decoration: InputDecoration(
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
@@ -186,7 +244,10 @@ class _SearchField extends StatelessWidget {
             size: 24,
           ),
         ),
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
         style: AppText.bodyMd,
+        textInputAction: TextInputAction.search,
       ),
     );
   }
@@ -204,6 +265,41 @@ class _SectionLabel extends StatelessWidget {
       style: AppText.labelMd.copyWith(
         color: AppColors.onSurfaceVariant,
         letterSpacing: 0.1 * 14,
+      ),
+    );
+  }
+}
+
+class _SearchMessage extends StatelessWidget {
+  const _SearchMessage(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Text(
+        text,
+        style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+      ),
+    );
+  }
+}
+
+/// Foursquare's API licence requires branded attribution on every screen where
+/// their Places Data can appear.
+class _PoweredByFoursquare extends StatelessWidget {
+  const _PoweredByFoursquare();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Powered by Foursquare',
+      style: AppText.labelSm.copyWith(
+        color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+        fontSize: 10,
+        letterSpacing: 0.05 * 10,
       ),
     );
   }
@@ -258,65 +354,70 @@ class _QuickFilter extends StatelessWidget {
 }
 
 class _RecentRow extends StatelessWidget {
-  const _RecentRow({required this.subtitle, required this.title});
+  const _RecentRow({
+    required this.onRemove,
+    required this.onTap,
+    required this.title,
+  });
 
-  final String subtitle;
+  final VoidCallback onRemove;
+  final VoidCallback onTap;
   final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: AppColors.surfaceContainer,
-            shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceContainer,
+              shape: BoxShape.circle,
+            ),
+            height: 40,
+            width: 40,
+            child: const Icon(
+              Icons.history,
+              color: AppColors.onSurfaceVariant,
+              size: 20,
+            ),
           ),
-          height: 40,
-          width: 40,
-          child: const Icon(
-            Icons.history,
-            color: AppColors.onSurfaceVariant,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: AppText.bodyMd),
-              Text(
-                subtitle,
-                style: AppText.labelSm.copyWith(
-                  color: AppColors.onSurfaceVariant,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: AppText.bodyMd),
+                Text(
+                  'Recent search',
+                  style: AppText.labelSm.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const Icon(Icons.close, color: AppColors.onSurfaceVariant, size: 16),
-      ],
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(
+              Icons.close,
+              color: AppColors.onSurfaceVariant,
+              size: 16,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _TrendingCard extends StatelessWidget {
-  const _TrendingCard({
-    required this.subtitle,
-    required this.title,
-    required this.trailing,
-    this.imageIndex,
-    this.imageUrl,
-  });
+class _PlaceCard extends StatelessWidget {
+  const _PlaceCard({required this.place});
 
-  final int? imageIndex;
-  final String? imageUrl;
-  final String subtitle;
-  final String title;
-  final Widget trailing;
+  final Place place;
 
   @override
   Widget build(BuildContext context) {
@@ -333,7 +434,9 @@ class _TrendingCard extends StatelessWidget {
           children: [
             SizedBox(
               width: 96,
-              child: NetImage(imageUrl ?? DemoImages.search[imageIndex ?? 0]),
+              child: place.photoUrl == null
+                  ? const ColoredBox(color: AppColors.surfaceContainer)
+                  : NetImage(place.photoUrl!),
             ),
             Expanded(
               child: Padding(
@@ -348,7 +451,7 @@ class _TrendingCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            title,
+                            place.name,
                             overflow: TextOverflow.ellipsis,
                             style: AppText.headlineSm,
                           ),
@@ -360,52 +463,33 @@ class _TrendingCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: AppText.labelSm.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                    if (place.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        place.subtitle,
+                        style: AppText.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    trailing,
+                    ],
+                    if (place.address != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        place.address!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.labelSm.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _VerifiedChip extends StatelessWidget {
-  const _VerifiedChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        color: AppColors.warmPaper,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.check, color: AppColors.deepInk, size: 12),
-          const SizedBox(width: 4),
-          Text(
-            'VERIFIED',
-            style: AppText.labelSm.copyWith(
-              color: AppColors.deepInk,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.05 * 10,
-            ),
-          ),
-        ],
       ),
     );
   }
