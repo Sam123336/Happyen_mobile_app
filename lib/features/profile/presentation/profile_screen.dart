@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:happyn_mobile/core/data/demo_images.dart';
+import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
+import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
 import 'package:happyn_mobile/features/vibe/presentation/vibe_report_screen.dart';
 import 'package:happyn_mobile/features/shell/presentation/app_shell.dart';
 
@@ -15,6 +17,10 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Null until the account is signed in and provisioned; the panels below
+    // keep their designed copy until their own endpoints exist.
+    final profile = ref.watch(currentProfileProvider).value;
+
     return Scaffold(
       backgroundColor: AppColors.primaryContainer,
       body: Stack(
@@ -25,19 +31,19 @@ class ProfileScreen extends ConsumerWidget {
               bottom: 128,
             ),
             children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(
+              Padding(
+                padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.marginMobile,
                 ),
                 child: Column(
                   children: [
-                    _ProfileIdentity(tags: _tags),
-                    SizedBox(height: 48),
-                    _StatsPanel(),
-                    SizedBox(height: 48),
-                    _VerifiedMoments(),
-                    SizedBox(height: 48),
-                    Padding(
+                    _ProfileIdentity(profile: profile, tags: _tags),
+                    const SizedBox(height: 48),
+                    const _StatsPanel(),
+                    const SizedBox(height: 48),
+                    const _VerifiedMoments(),
+                    const SizedBox(height: 48),
+                    const Padding(
                       padding: EdgeInsets.only(top: 32),
                       child: _ShareProfileButton(),
                     ),
@@ -126,8 +132,9 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _ProfileIdentity extends StatelessWidget {
-  const _ProfileIdentity({required this.tags});
+  const _ProfileIdentity({required this.profile, required this.tags});
 
+  final UserProfile? profile;
   final List<String> tags;
 
   @override
@@ -141,14 +148,17 @@ class _ProfileIdentity extends StatelessWidget {
           ),
           height: 128,
           width: 128,
-          child: ClipOval(child: NetImage(DemoImages.profile[1])),
+          child: ClipOval(
+            child: NetImage(profile?.avatarUrl ?? DemoImages.profile[1]),
+          ),
         ),
         const SizedBox(height: 24),
-        Text('Alex Mercer', style: sora16),
+        Text(profile?.displayName ?? 'Alex Mercer', style: sora16),
         const SizedBox(height: 8),
         Text(
-          "Exploring the city's hidden frequencies. Always down for "
-          'late-night jazz and early-morning coffee.',
+          profile?.bio ??
+              "Exploring the city's hidden frequencies. Always down for "
+                  'late-night jazz and early-morning coffee.',
           style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
           textAlign: TextAlign.center,
         ),

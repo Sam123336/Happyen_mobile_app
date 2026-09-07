@@ -1,24 +1,28 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:happyn_mobile/core/data/demo_images.dart';
+import 'package:happyn_mobile/core/map/happyn_map.dart';
+import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/activity/presentation/activity_screen.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
 import 'package:happyn_mobile/features/city/presentation/night_city_screen.dart';
 import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
+import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 
 /// "Living City — Daytime": the isometric city diorama with the Time Machine.
-class CityScreen extends StatefulWidget {
+class CityScreen extends ConsumerStatefulWidget {
   const CityScreen({super.key});
 
   @override
-  State<CityScreen> createState() => _CityScreenState();
+  ConsumerState<CityScreen> createState() => _CityScreenState();
 }
 
-class _CityScreenState extends State<CityScreen> {
+class _CityScreenState extends ConsumerState<CityScreen> {
   static const _categories = <String>[
     'FOR YOU',
     'MUSIC',
@@ -31,6 +35,17 @@ class _CityScreenState extends State<CityScreen> {
 
   int _category = 0;
   int _slot = 0;
+  String? _selectedEventId;
+
+  /// "FOR YOU" is not a category the API knows; it means no filter.
+  EventCategory? get _selectedCategory => switch (_categories[_category]) {
+    'MUSIC' => EventCategory.music,
+    'COMEDY' => EventCategory.comedy,
+    'FOOD' => EventCategory.food,
+    'PETS' => EventCategory.pets,
+    'SPORTS' => EventCategory.sports,
+    _ => null,
+  };
 
   void _selectSlot(int index) {
     setState(() => _slot = index);
@@ -48,19 +63,57 @@ class _CityScreenState extends State<CityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Loading until the device reports a fix; the city centre holds the camera
+    // until then, and the map flies to the device once it arrives.
+    final centre = ref.watch(searchCentreProvider).value ?? bengaluruCentre;
+    // An unreachable API leaves the map empty rather than failing the screen.
+    final nearby =
+        ref.watch(nearbyEventsProvider(_selectedCategory)).value ??
+        const <HappynEvent>[];
+    final selected = nearby
+        .where((event) => event.id == _selectedEventId)
+        .followedBy(nearby)
+        .firstOrNull;
+
     return Stack(
       children: [
-        const Positioned.fill(child: _IsometricMap()),
+        Positioned.fill(
+          child: HappynMap(
+            centre: centre,
+            fallback: const _IsometricMap(),
+            onPinTapped: (id) => setState(() => _selectedEventId = id),
+            pins: [
+              for (final event in nearby)
+                MapPin(
+                  id: event.id,
+                  latitude: event.latitude,
+                  longitude: event.longitude,
+                  selected: event.id == selected?.id,
+                ),
+            ],
+          ),
+        ),
         const Positioned.fill(child: _Fog()),
         Positioned.fill(
           child: Center(
-            child: _EventDiorama(
-              energy: '82° Energy',
-              imageUrl: DemoImages.cityDay[3],
-              satellites: DemoImages.cityDay.take(3).toList(),
-              subtitle: '8:30 PM',
-              title: 'Bangalore Comedy Night',
-            ),
+            child: selected == null
+                ? const _EventDiorama(
+                    energy: '82° Energy',
+                    imageUrl: '',
+                    satellites: [],
+                    subtitle: '8:30 PM',
+                    title: 'Bangalore Comedy Night',
+                  )
+                : _EventDiorama(
+                    // Live Energy is server-owned and does not exist yet, so
+                    // this slot carries the category rather than a made-up
+                    // number, and nobody is claimed to be there.
+                    energy: _categoryLabel(selected.category),
+                    imageUrl: selected.heroImageUrl ?? '',
+                    satellites: const [],
+                    subtitle: '${selected.startLabel} • ${selected.venueName}',
+                    title: selected.title,
+                  ),
           ),
         ),
         Positioned(left: 0, right: 0, top: 0, child: _Header()),
@@ -70,7 +123,10 @@ class _CityScreenState extends State<CityScreen> {
           top: headerOffset(context, 88),
           child: _CategoryRow(
             categories: _categories,
-            onSelected: (i) => setState(() => _category = i),
+            onSelected: (i) => setState(() {
+              _category = i;
+              _selectedEventId = null;
+            }),
             selected: _category,
           ),
         ),
@@ -88,6 +144,9 @@ class _CityScreenState extends State<CityScreen> {
     );
   }
 }
+
+String _categoryLabel(EventCategory category) =>
+    category == EventCategory.unknown ? 'EVENT' : category.name.toUpperCase();
 
 /// `transform: rotateX(60deg) rotateZ(-30deg) translateZ(-200px) scale(0.8)`
 /// over a 100px grid, with a few extruded blocks.
