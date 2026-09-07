@@ -1,0 +1,51 @@
+{
+  // Flavors live in lib/flavor.dart; see README.md. The Dart extension runs
+  // `flutter run (toolArgs) lib/main_x.dart (args)`, so --flavor and
+  // --dart-define go in toolArgs.
+  //
+  // To see the real map, append your Mapbox public token to a config's
+  // toolArgs: "--dart-define=MAPBOX_ACCESS_TOKEN=pk...". This repository is
+  // public, so do not commit one.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Physical Android device, USB or wireless. Run `adb reverse
+      // tcp:3000 tcp:3000` once per connection and the device reaches the
+      // backend on your laptop at localhost:3000.
+      "name": "Happyen Dev",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_dev.dart",
+      "toolArgs": ["--flavor", "dev"]
+    },
+    {
+      // An emulator cannot see the host's localhost: 10.0.2.2 is the host
+      // loopback from inside it.
+      "name": "Happyen Dev (Android emulator)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_dev.dart",
+      "toolArgs": [
+        "--flavor",
+        "dev",
+        "--dart-define=HAPPYN_API_ORIGIN=http://10.0.2.2:3000"
+      ]
+    },
+    {
+      // Points at the deployed backend, which is still failing to build.
+      "name": "Happyen Prod",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_prod.dart",
+      "toolArgs": ["--flavor", "prod"]
+    },
+    {
+      // iOS has no dev/prod schemes yet, so --flavor fails there. The entry
+      // point alone still selects the dev API origin and app title.
+      "name": "Happyen Dev (iOS, no flavor)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_dev.dart"
+    }
+  ]
+}

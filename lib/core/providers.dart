@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:happyn_mobile/core/auth/auth_gateway.dart';
 import 'package:happyn_mobile/core/auth/auth_user.dart';
@@ -12,6 +12,7 @@ import 'package:happyn_mobile/features/places/data/places_repository.dart';
 import 'package:happyn_mobile/features/places/domain/place.dart';
 import 'package:happyn_mobile/features/profile/data/profile_repository.dart';
 import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
+import 'package:happyn_mobile/flavor.dart';
 
 /// Riverpod retries a failed provider forever by default, which turns a failing
 /// endpoint into a permanent spinner and an endless request loop. A server that
@@ -27,13 +28,15 @@ final authUserProvider = StreamProvider<AuthUser?>((ref) {
   return ref.watch(authGatewayProvider).authStateChanges();
 });
 
+/// Defaults to dev so tests and a bare `flutter run` behave; each entrypoint
+/// overrides it with its own flavor.
+final appConfigProvider = Provider<AppConfig>(
+  (ref) => AppConfig.of(Flavor.dev),
+);
+
 final apiClientProvider = Provider<ApiClient>((ref) {
-  const apiOrigin = String.fromEnvironment(
-    'HAPPYN_API_ORIGIN',
-    defaultValue: 'http://localhost:3000',
-  );
   return ApiClient(
-    baseUri: Uri.parse(apiOrigin),
+    baseUri: Uri.parse(ref.watch(appConfigProvider).apiOrigin),
     accessToken: () => ref.read(authGatewayProvider).idToken(),
   );
 });

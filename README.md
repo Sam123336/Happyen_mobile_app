@@ -2,7 +2,40 @@
 
 The Flutter client uses a feature-oriented structure with Riverpod. Phase 2 adds an `AuthGateway` boundary, its Firebase implementation, bearer-authenticated API transport, an idempotent session bootstrap provider, and typed profile/privacy models. These pieces can be overridden with fakes in tests and do not initialize Firebase merely by rendering the application shell.
 
-Set the API origin at build time with `--dart-define=HAPPYN_API_ORIGIN=https://...`.
+## Flavors
+
+Two flavors, `dev` and `prod`, differing only in where the app points and what
+it is called. `lib/flavor.dart` holds both, next to the entrypoints that
+pick one:
+
+    flutter run --flavor dev  -t lib/main_dev.dart
+    flutter run --flavor prod -t lib/main_prod.dart
+
+`flutter run` with no entrypoint gets dev, so prod is never the accident.
+
+On Android the two install side by side: `dev` carries a `.dev` application-id
+suffix and shows as "Happyen Dev". **On iOS `--flavor` does not work yet** —
+that needs `dev`/`prod` Xcode schemes and six build configurations, which is
+Xcode project surgery nobody has done. Until then run iOS with the entrypoint
+alone (`flutter run -t lib/main_dev.dart`): the API origin and app title are
+still right, only the bundle id and launcher name are shared.
+
+`--dart-define=HAPPYN_API_ORIGIN=...` overrides whichever flavor is running,
+for pointing a build at a laptop on the LAN or a preview deployment.
+
+### Reaching a local backend
+
+`.vscode/launch.json` carries these as Run and Debug entries. `localhost` means
+something different on each target, so:
+
+- **Android emulator** — use the "Android emulator" entry; the emulator sees the
+  host at `10.0.2.2`, never `localhost`.
+- **Physical Android, USB or wireless** — `adb reverse tcp:3000 tcp:3000` once
+  per connection, then the plain "Happyen Dev" entry works as-is. For wireless,
+  pair first with `adb pair <host>:<port>` and `adb connect <host>:<port>` from
+  the phone's Wireless debugging screen; re-run `adb reverse` after connecting,
+  because it is per-connection.
+- **iOS simulator** — `localhost` is the host already, so nothing is needed.
 
 ## Screens on live data
 

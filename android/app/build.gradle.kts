@@ -30,6 +30,23 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            // A suffix rather than a separate id, so dev and prod install side
+            // by side on one device.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Happyen Dev")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Happyen")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
