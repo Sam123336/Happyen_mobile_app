@@ -15,6 +15,7 @@ class HappynEvent {
     required this.distanceMeters,
     required this.eventId,
     required this.id,
+    required this.isLive,
     required this.latitude,
     required this.longitude,
     required this.startAt,
@@ -33,6 +34,9 @@ class HappynEvent {
     eventId: json['eventId'] as String,
     heroImageUrl: json['heroImageUrl'] as String?,
     id: json['id'] as String,
+    // Older deployed API versions do not have this field yet. Treating it as
+    // false keeps the app compatible during a rolling mobile/API deploy.
+    isLive: json['isLive'] as bool? ?? false,
     latitude: (json['latitude'] as num).toDouble(),
     longitude: (json['longitude'] as num).toDouble(),
     startAt: DateTime.parse(json['startAt'] as String).toLocal(),
@@ -46,6 +50,7 @@ class HappynEvent {
   final String eventId;
   final String? heroImageUrl;
   final String id;
+  final bool isLive;
   final double latitude;
   final double longitude;
   final DateTime startAt;

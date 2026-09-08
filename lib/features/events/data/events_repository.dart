@@ -11,6 +11,7 @@ class EventsRepository {
     required double longitude,
     EventCategory? category,
     int limit = 50,
+    bool includeLive = true,
     int radiusMeters = 5000,
     DateTime? startsBefore,
   }) async {
@@ -23,6 +24,9 @@ class EventsRepository {
         'radius_m': '$radiusMeters',
         if (category != null && category != EventCategory.unknown)
           'category': category.name,
+        // The API defaults to including live occurrences. Leave the default
+        // off the wire, but let future-only time controls opt out explicitly.
+        if (!includeLive) 'include_live': 'false',
         if (startsBefore != null)
           'starts_before': startsBefore.toUtc().toIso8601String(),
       },

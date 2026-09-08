@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -20,9 +22,13 @@ import 'package:happyn_mobile/flavor.dart';
 Duration? retryOnce(int retryCount, Object error) =>
     error is ApiException || retryCount > 0 ? null : const Duration(seconds: 1);
 
-final authGatewayProvider = Provider<AuthGateway>(
-  (ref) => FirebaseAuthGateway(FirebaseAuth.instance),
-);
+final authGatewayProvider = Provider<AuthGateway>((ref) {
+  try {
+    return FirebaseAuthGateway(FirebaseAuth.instance);
+  } on FirebaseException {
+    return const UnavailableAuthGateway();
+  }
+});
 
 final authUserProvider = StreamProvider<AuthUser?>((ref) {
   return ref.watch(authGatewayProvider).authStateChanges();
@@ -103,11 +109,27 @@ final eventsRepositoryProvider = Provider<EventsRepository>(
   (ref) => EventsRepository(ref.watch(apiClientProvider)),
 );
 
+/// City-map event data stays fresh without holding a socket open for every
+/// visible map. The backend computes live status at request time, so a short
+/// polling interval is enough for an event to turn on/off while the user is
+/// looking at the city.
+const liveEventRefreshInterval = Duration(seconds: 30);
+
 /// Upcoming occurrences around the search centre, optionally one category.
-/// Keyed by category so switching a filter chip is a new request, not a refetch
-/// of everything.
+/// Keyed by category so switching a filter chip is a new request. Rebuilding
+/// this provider every [liveEventRefreshInterval] also refreshes active events.
 final nearbyEventsProvider = FutureProvider.autoDispose
     .family<List<HappynEvent>, EventCategory?>((ref, category) async {
+      final refresh = Timer.periodic(
+        liveEventRefreshInterval,
+        (_) => ref.invalidateSelf(),
+      );
+      ref.onDispose(refresh.cancel);
+      // Events are protected by ProvisionedUserGuard. Creating the session
+      // first maps a valid Firebase identity to its internal account, avoiding
+      // the first-city-load race where an otherwise valid token gets a 403.
+      final profile = await ref.watch(currentProfileProvider.future);
+      if (profile == null) return const <HappynEvent>[];
       final centre = await ref.watch(searchCentreProvider.future);
       return ref
           .watch(eventsRepositoryProvider)

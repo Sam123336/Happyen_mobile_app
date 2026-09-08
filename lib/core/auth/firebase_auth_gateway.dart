@@ -49,6 +49,33 @@ class FirebaseAuthGateway implements AuthGateway {
   }
 }
 
+/// Keeps the map/design shell usable before a developer has installed the
+/// environment-owned Firebase configuration. It intentionally has no identity:
+/// protected backend requests remain disabled until Firebase is configured and
+/// a real user signs in.
+class UnavailableAuthGateway implements AuthGateway {
+  const UnavailableAuthGateway();
+
+  @override
+  Stream<AuthUser?> authStateChanges() => Stream.value(null);
+
+  @override
+  Future<String> idToken({bool forceRefresh = false}) async {
+    throw const AuthSessionException('Firebase is not configured');
+  }
+
+  @override
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    throw const AuthSessionException('Firebase is not configured');
+  }
+
+  @override
+  Future<void> signOut() async {}
+}
+
 class AuthSessionException implements Exception {
   const AuthSessionException(this.message);
 

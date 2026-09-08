@@ -40,14 +40,18 @@ something different on each target, so:
 ## Screens on live data
 
 Search runs `GET /v1/places/search` as you type (350ms debounce; the quick
-filters are search terms), and the profile identity reads the account returned by
-`POST /v1/auth/session`. Every other screen still renders its designed
-placeholder because the endpoint behind it does not exist yet.
+filters are search terms), the profile identity reads the account returned by
+`POST /v1/auth/session`, and City draws `GET /v1/events/nearby` on the map.
+The event provider polls every 30 seconds while the city screen is mounted, so
+the backend's `isLive` status changes without making the user reopen the app.
+Other social/detail content still renders its designed placeholder where an
+endpoint does not exist yet.
 
-Both fall back to that placeholder state when the API is unreachable, so the app
-runs without Firebase configured — but no authenticated call can succeed until
-`Firebase.initializeApp()` is called with real `google-services.json` /
-`GoogleService-Info.plist` files. Until then the API answers `401`.
+Both fall back to that placeholder state when the API is unreachable. Startup
+initializes Firebase when real `google-services.json` / `GoogleService-Info.plist`
+files are installed, but intentionally keeps the design shell available without
+them. Until those project credentials are installed and a user signs in, the
+authenticated API answers `401`.
 
 `ProviderScope` is created with `retry: retryOnce`: Riverpod 3 otherwise retries
 a failed provider forever, which turns an unreachable API into a permanent
@@ -86,10 +90,16 @@ Mapbox's terms require their logo and attribution control to stay visible. Both
 are SDK defaults here — do not disable them while tidying the map UI.
 
 The city screens draw pins from `GET /v1/events/nearby` for the selected
-category chip; tapping one selects it and the centre diorama shows that event.
-Two of the diorama's slots stay honest rather than filled: the orbiting
-avatars are empty because friend presence has no endpoint, and the energy pill
-carries the category because Live Energy is server-owned and does not exist yet.
+category chip; tapping one selects it and the centre diorama/detail view shows
+that API occurrence. The same portable GeoJSON event data creates Mapbox
+fill-extrusion beacons: coral, taller beacons are live; violet, shorter beacons
+are scheduled. The standard basemap's pitched 3D buildings remain visible
+behind them. The API is polled every 30 seconds instead of opening a socket for
+every map, which suits the Vercel deployment model.
+
+Two of the diorama's slots stay honest rather than filled: orbiting avatars are
+empty because friend presence has no endpoint, and the app reports `LIVE NOW`
+rather than inventing an attendance/energy score.
 
 Pins need seeded events — run `pnpm db:seed` in the backend.
 

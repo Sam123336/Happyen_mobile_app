@@ -8,6 +8,7 @@ import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
 import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
+import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 
 /// "Living City — Nighttime": the flat grid void with the orbiting diorama
 /// and the Temporal Control segmented pill.
@@ -28,9 +29,16 @@ class _NightCityScreenState extends ConsumerState<NightCityScreen> {
   ];
 
   int _selected = 1;
+  String? _selectedEventId;
 
   @override
   Widget build(BuildContext context) {
+    final nearby =
+        ref.watch(nearbyEventsProvider(null)).value ?? const <HappynEvent>[];
+    final selectedEvent = nearby
+        .where((event) => event.id == _selectedEventId)
+        .followedBy(nearby)
+        .firstOrNull;
     return Scaffold(
       backgroundColor: AppColors.deepInk,
       body: Stack(
@@ -40,13 +48,24 @@ class _NightCityScreenState extends ConsumerState<NightCityScreen> {
               centre: ref.watch(searchCentreProvider).value ?? bengaluruCentre,
               fallback: const _MapGrid(),
               light: MapLight.night,
+              onPinTapped: (id) => setState(() => _selectedEventId = id),
+              pins: [
+                for (final event in nearby)
+                  MapPin(
+                    id: event.id,
+                    isLive: event.isLive,
+                    latitude: event.latitude,
+                    longitude: event.longitude,
+                    selected: event.id == _selectedEventId,
+                  ),
+              ],
             ),
           ),
           Positioned.fill(
             child: Center(
               child: Transform.translate(
                 offset: const Offset(0, -40),
-                child: const _NightDiorama(),
+                child: _NightDiorama(event: selectedEvent),
               ),
             ),
           ),
@@ -172,7 +191,9 @@ class _NightHeader extends StatelessWidget {
 
 /// 280px diorama with the coral halo, Editor's Pick tag and orbiting friends.
 class _NightDiorama extends StatelessWidget {
-  const _NightDiorama();
+  const _NightDiorama({this.event});
+
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +246,7 @@ class _NightDiorama extends StatelessWidget {
           GestureDetector(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => const EventDetailScreen(),
+                builder: (_) => EventDetailScreen(event: event),
               ),
             ),
             child: SizedBox(
@@ -254,7 +275,9 @@ class _NightDiorama extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          NetImage(DemoImages.cityNight[1]),
+                          NetImage(
+                            event?.heroImageUrl ?? DemoImages.cityNight[1],
+                          ),
                           const DecoratedBox(
                             decoration: BoxDecoration(
                               gradient: RadialGradient(
@@ -285,7 +308,7 @@ class _NightDiorama extends StatelessWidget {
                     bottom: -48,
                     left: -20,
                     right: -20,
-                    child: Center(child: const _DioramaLabel()),
+                    child: Center(child: _DioramaLabel(event: event)),
                   ),
                 ],
               ),
@@ -298,7 +321,9 @@ class _NightDiorama extends StatelessWidget {
 }
 
 class _DioramaLabel extends StatelessWidget {
-  const _DioramaLabel();
+  const _DioramaLabel({this.event});
+
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +347,7 @@ class _DioramaLabel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Bangalore Comedy Night',
+            event?.title ?? 'Bangalore Comedy Night',
             style: AppText.headlineSm.copyWith(
               shadows: [
                 Shadow(
@@ -333,7 +358,11 @@ class _DioramaLabel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const PulseSlow(child: EnergyPill.bare(label: '98% Energy')),
+          PulseSlow(
+            child: EnergyPill.bare(
+              label: event?.isLive == true ? 'LIVE NOW' : 'UP NEXT',
+            ),
+          ),
         ],
       ),
     );

@@ -14,6 +14,7 @@ const occurrenceJson = {
   'eventId': 'event-1',
   'heroImageUrl': null,
   'id': 'occurrence-1',
+  'isLive': true,
   'latitude': 12.9784,
   'longitude': 77.6408,
   'startAt': '2026-09-08T15:00:00.000Z',
@@ -60,6 +61,7 @@ void main() {
     expect(events.single.title, 'Open Mic: First Drafts');
     expect(events.single.venueName, 'Neon Terrace');
     expect(events.single.category, EventCategory.comedy);
+    expect(events.single.isLive, isTrue);
   });
 
   test('sends no category for the unfiltered "for you" view', () async {
@@ -79,6 +81,21 @@ void main() {
     final events = await repository.nearby(latitude: 0, longitude: 0);
 
     expect(events.single.category, EventCategory.unknown);
+  });
+
+  test('asks for a future-only window when live events are excluded', () async {
+    late http.Request captured;
+    final repository = repositoryReturning([], (r) => captured = r);
+
+    await repository.nearby(includeLive: false, latitude: 0, longitude: 0);
+
+    expect(captured.url.queryParameters['include_live'], 'false');
+  });
+
+  test('reads a response from an API deployed before live status', () {
+    final event = HappynEvent.fromJson({...occurrenceJson, 'isLive': null});
+
+    expect(event.isLive, isFalse);
   });
 
   test('renders a start time the way the diorama expects', () {

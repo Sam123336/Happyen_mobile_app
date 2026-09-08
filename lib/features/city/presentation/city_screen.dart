@@ -86,6 +86,7 @@ class _CityScreenState extends ConsumerState<CityScreen> {
               for (final event in nearby)
                 MapPin(
                   id: event.id,
+                  isLive: event.isLive,
                   latitude: event.latitude,
                   longitude: event.longitude,
                   selected: event.id == selected?.id,
@@ -98,20 +99,22 @@ class _CityScreenState extends ConsumerState<CityScreen> {
           child: Center(
             child: selected == null
                 ? const _EventDiorama(
-                    energy: '82° Energy',
+                    energy: 'LIVE MAP',
                     imageUrl: '',
                     satellites: [],
-                    subtitle: '8:30 PM',
-                    title: 'Bangalore Comedy Night',
+                    subtitle: 'Events near you appear here',
+                    title: 'Explore Bengaluru',
                   )
                 : _EventDiorama(
-                    // Live Energy is server-owned and does not exist yet, so
-                    // this slot carries the category rather than a made-up
-                    // number, and nobody is claimed to be there.
-                    energy: _categoryLabel(selected.category),
+                    event: selected,
+                    energy: selected.isLive
+                        ? 'LIVE NOW'
+                        : _categoryLabel(selected.category),
                     imageUrl: selected.heroImageUrl ?? '',
                     satellites: const [],
-                    subtitle: '${selected.startLabel} • ${selected.venueName}',
+                    subtitle: selected.isLive
+                        ? 'LIVE • ${selected.venueName}'
+                        : '${selected.startLabel} • ${selected.venueName}',
                     title: selected.title,
                   ),
           ),
@@ -385,6 +388,7 @@ class _EventDiorama extends StatelessWidget {
     required this.satellites,
     required this.subtitle,
     required this.title,
+    this.event,
   });
 
   static const _box = 380.0;
@@ -392,6 +396,7 @@ class _EventDiorama extends StatelessWidget {
   static const _ring = 260.0;
 
   final String energy;
+  final HappynEvent? event;
   final String imageUrl;
   final List<String> satellites;
   final String subtitle;
@@ -445,11 +450,13 @@ class _EventDiorama extends StatelessWidget {
             left: maskTop,
             top: maskTop,
             child: GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const EventDetailScreen(),
-                ),
-              ),
+              onTap: event == null
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => EventDetailScreen(event: event),
+                      ),
+                    ),
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(

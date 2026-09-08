@@ -3,13 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:happyn_mobile/core/data/demo_images.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
+import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 import 'package:happyn_mobile/features/geofence/presentation/geofence_screen.dart';
 import 'package:happyn_mobile/features/orbit/presentation/moments_feed_screen.dart';
 import 'package:happyn_mobile/features/ticket/presentation/ticket_screen.dart';
 
-/// "Event Detail — Bangalore Comedy Night".
+/// A detail view for an event selected from the living map.
 class EventDetailScreen extends StatelessWidget {
-  const EventDetailScreen({super.key});
+  const EventDetailScreen({this.event, super.key});
+
+  /// Nullable for the existing design-preview entry points. Map navigation
+  /// always provides an API-backed occurrence.
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +25,7 @@ class EventDetailScreen extends StatelessWidget {
           ListView(
             padding: const EdgeInsets.only(bottom: 128),
             children: [
-              const _Hero(),
+              _Hero(event: event),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.marginMobile,
@@ -31,16 +36,16 @@ class EventDetailScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _MetaRow(),
+                    _MetaRow(event: event),
                     const SizedBox(height: 24),
-                    const _PlaceAndEnergy(),
+                    _PlaceAndEnergy(event: event),
                     const SizedBox(height: 48),
                     const _FriendsCard(),
                     const SizedBox(height: 48),
                     Row(
                       children: [
                         Text(
-                          'LIVE NOW',
+                          event?.isLive == true ? 'LIVE NOW' : 'EVENT MOMENTS',
                           style: AppText.headlineMd.copyWith(
                             letterSpacing: -0.025 * 24,
                           ),
@@ -72,7 +77,9 @@ class EventDetailScreen extends StatelessWidget {
 }
 
 class _Hero extends StatelessWidget {
-  const _Hero();
+  const _Hero({this.event});
+
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +88,7 @@ class _Hero extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          NetImage(DemoImages.eventDetail[6]),
+          NetImage(event?.heroImageUrl ?? DemoImages.eventDetail[6]),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -101,7 +108,7 @@ class _Hero extends StatelessWidget {
             left: AppSpacing.marginMobile,
             right: AppSpacing.marginMobile,
             child: Text(
-              'BANGALORE\nCOMEDY NIGHT',
+              (event?.title ?? 'Bangalore Comedy Night').toUpperCase(),
               style: AppText.displayXl.copyWith(
                 letterSpacing: -0.05 * 52,
                 shadows: const [
@@ -176,7 +183,9 @@ class _CircleButton extends StatelessWidget {
 }
 
 class _MetaRow extends StatelessWidget {
-  const _MetaRow();
+  const _MetaRow({this.event});
+
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -189,13 +198,13 @@ class _MetaRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.theater_comedy_outlined,
+              Icons.event_outlined,
               color: AppColors.onSurfaceVariant,
               size: 18,
             ),
             const SizedBox(width: 6),
             Text(
-              'COMEDY · LIVE',
+              '${_categoryLabel(event)} · ${event?.isLive == true ? 'LIVE' : 'UP NEXT'}',
               style: AppText.labelMd.copyWith(
                 color: AppColors.onSurfaceVariant,
                 letterSpacing: 0.1 * 14,
@@ -214,7 +223,7 @@ class _MetaRow extends StatelessWidget {
           children: [
             const Icon(Icons.schedule, color: AppColors.onSurface, size: 18),
             const SizedBox(width: 6),
-            Text('Tonight 8:30 PM', style: AppText.bodyMd),
+            Text(_timeLabel(event), style: AppText.bodyMd),
           ],
         ),
       ],
@@ -223,7 +232,9 @@ class _MetaRow extends StatelessWidget {
 }
 
 class _PlaceAndEnergy extends StatelessWidget {
-  const _PlaceAndEnergy();
+  const _PlaceAndEnergy({this.event});
+
+  final HappynEvent? event;
 
   @override
   Widget build(BuildContext context) {
@@ -248,9 +259,12 @@ class _PlaceAndEnergy extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Koramangala', style: AppText.headlineSm),
                 Text(
-                  '2.4 km away',
+                  event?.venueName ?? 'Koramangala',
+                  style: AppText.headlineSm,
+                ),
+                Text(
+                  _distanceLabel(event),
                   style: AppText.bodyMd.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
@@ -271,13 +285,13 @@ class _PlaceAndEnergy extends StatelessWidget {
                   color: AppColors.tertiary.withValues(alpha: 0.3),
                 ),
                 iconSize: 18,
-                label: '84° LIVE',
+                label: event?.isLive == true ? 'LIVE NOW' : 'UP NEXT',
                 style: AppText.labelMd.copyWith(letterSpacing: 0.1 * 14),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              'ENERGY LEVEL',
+              event?.isLive == true ? 'LIVE STATUS' : 'EVENT STATUS',
               style: AppText.labelSm.copyWith(
                 color: AppColors.onSurfaceVariant,
                 letterSpacing: 0.05 * 12,
@@ -288,6 +302,25 @@ class _PlaceAndEnergy extends StatelessWidget {
       ],
     );
   }
+}
+
+String _categoryLabel(HappynEvent? event) {
+  final category = event?.category;
+  if (category == null || category == EventCategory.unknown) return 'EVENT';
+  return category.name.toUpperCase();
+}
+
+String _timeLabel(HappynEvent? event) {
+  if (event == null) return 'Tonight 8:30 PM';
+  return event.isLive ? 'Happening now' : 'Starts ${event.startLabel}';
+}
+
+String _distanceLabel(HappynEvent? event) {
+  if (event == null) return '2.4 km away';
+  if (event.distanceMeters < 1000) {
+    return '${event.distanceMeters.round()} m away';
+  }
+  return '${(event.distanceMeters / 1000).toStringAsFixed(1)} km away';
 }
 
 class _FriendsCard extends StatelessWidget {
