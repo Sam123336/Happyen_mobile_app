@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
@@ -24,6 +25,10 @@ Future<void> bootstrap(Flavor flavor) async {
     // Authenticated requests surface their own recoverable error until Firebase
     // is configured. Do not make the city/map shell unavailable because a
     // developer has not installed local Firebase credentials yet.
+  } on PlatformException {
+    // Android throws this native exception when google-services.json has not
+    // generated FirebaseOptions resources yet. Treat it like the Firebase
+    // exception above so preview/map-only builds still launch.
   }
   runApp(
     ProviderScope(
