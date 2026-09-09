@@ -33,7 +33,7 @@ void main() {
     expect(find.text('What are you feeling?'), findsOneWidget);
   });
 
-  testWidgets('renders the profile screen without a Firebase session', (
+  testWidgets('renders the profile screen without a session', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(

@@ -35,7 +35,7 @@ void main() {
       final repository = ProfileRepository(
         ApiClient(
           baseUri: Uri.parse('https://api.example.com'),
-          accessToken: () async => 'firebase-token',
+          accessToken: () async => 'access-token',
           httpClient: client,
         ),
       );
@@ -43,7 +43,7 @@ void main() {
       final profile = await repository.createSession();
 
       expect(captured.url.path, '/v1/auth/session');
-      expect(captured.headers['authorization'], 'Bearer firebase-token');
+      expect(captured.headers['authorization'], 'Bearer access-token');
       expect(profile.presenceVisibility, PrivacyAudience.nobody);
       expect(profile.momentsVisibility, PrivacyAudience.friends);
     },

@@ -28,7 +28,7 @@ PlacesRepository repositoryReturning(
   return PlacesRepository(
     ApiClient(
       baseUri: Uri.parse('https://api.example.com'),
-      accessToken: () async => 'firebase-token',
+      accessToken: () async => 'access-token',
       httpClient: client,
     ),
   );
@@ -54,7 +54,7 @@ void main() {
       'query': 'jazz',
       'radius_m': '1500',
     });
-    expect(captured.headers['authorization'], 'Bearer firebase-token');
+    expect(captured.headers['authorization'], 'Bearer access-token');
     expect(places.single.name, 'The Humming Tree');
     expect(places.single.subtitle, 'Music Venue • 340m');
   });
@@ -82,7 +82,7 @@ void main() {
     final repository = PlacesRepository(
       ApiClient(
         baseUri: Uri.parse('https://api.example.com'),
-        accessToken: () async => 'firebase-token',
+        accessToken: () async => 'access-token',
         httpClient: MockClient(
           (_) async =>
               http.Response('{"code":"places_provider_not_configured"}', 503),

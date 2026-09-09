@@ -51,7 +51,7 @@ void main() {
           apiClientProvider.overrideWithValue(
             ApiClient(
               baseUri: Uri.parse('https://api.example.com'),
-              accessToken: () async => 'firebase-token',
+              accessToken: () async => 'access-token',
               httpClient: client,
             ),
           ),
@@ -90,7 +90,7 @@ void main() {
           apiClientProvider.overrideWithValue(
             ApiClient(
               baseUri: Uri.parse('https://api.example.com'),
-              accessToken: () async => 'firebase-token',
+              accessToken: () async => 'access-token',
               httpClient: MockClient((_) async => http.Response('{}', 503)),
             ),
           ),

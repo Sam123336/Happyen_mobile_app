@@ -51,7 +51,7 @@ class SupabaseAuthGateway implements AuthGateway {
     try {
       await _auth.signInWithOtp(phone: phoneE164);
     } on supabase.AuthException catch (error) {
-      throw AuthSessionException(error.message);
+      throw AuthSessionException(_readable(error));
     }
   }
 
@@ -67,12 +67,27 @@ class SupabaseAuthGateway implements AuthGateway {
         type: supabase.OtpType.sms,
       );
     } on supabase.AuthException catch (error) {
-      throw AuthSessionException(error.message, isInvalidCode: true);
+      // A failure to reach Supabase at all is not a wrong code, and telling
+      // someone their correct code is wrong sends them re-reading the SMS.
+      final unreachable = error is supabase.AuthRetryableFetchException;
+      throw AuthSessionException(
+        _readable(error),
+        isInvalidCode: !unreachable,
+      );
     }
   }
 
   @override
   Future<void> signOut() => _auth.signOut();
+
+  /// gotrue reports a dead network as `AuthRetryableFetchException` carrying
+  /// the raw dart:io text — "ClientException with SocketException: Failed host
+  /// lookup ... errno = 7". That is a stack trace wearing a sentence, and it
+  /// ends up in front of the user, so say the useful part instead.
+  String _readable(supabase.AuthException error) =>
+      error is supabase.AuthRetryableFetchException
+      ? 'We could not reach Happyen. Check your connection and try again.'
+      : error.message;
 
   AuthUser? _mapUser(supabase.User? user) {
     if (user == null) return null;
