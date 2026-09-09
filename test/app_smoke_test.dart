@@ -50,11 +50,9 @@ void main() {
     expect(find.text('Verified Moments'), findsOneWidget);
   });
 
-  testWidgets('the city map falls back to its diorama without a token', (
+  testWidgets('the city map shows its diorama until the style loads', (
     WidgetTester tester,
   ) async {
-    expect(hasMapboxToken, isFalse);
-
     await tester.pumpWidget(
       const MaterialApp(
         home: HappynMap(centre: bengaluruCentre, fallback: Text('diorama')),

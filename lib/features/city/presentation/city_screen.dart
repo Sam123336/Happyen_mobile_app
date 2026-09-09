@@ -143,6 +143,9 @@ class _CityScreenState extends ConsumerState<CityScreen> {
             slots: _slots,
           ),
         ),
+        // Last, and clearing the shell's bottom navigation: the tile licence
+        // is only satisfied while this stays visible.
+        const MapAttribution(bottomInset: 88),
       ],
     );
   }

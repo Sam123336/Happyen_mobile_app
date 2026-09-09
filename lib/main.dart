@@ -1,11 +1,11 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:happyn_mobile/core/auth/secure_session_storage.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
-import 'package:happyn_mobile/features/shell/presentation/app_shell.dart';
+import 'package:happyn_mobile/features/auth/presentation/auth_gate.dart';
 import 'package:happyn_mobile/flavor.dart';
 
 /// `flutter run` with no entrypoint gets dev. Prod is never the accident.
@@ -15,20 +15,19 @@ Future<void> main() => bootstrap(Flavor.dev);
 /// [AppConfig] the tree is built with.
 Future<void> bootstrap(Flavor flavor) async {
   WidgetsFlutterBinding.ensureInitialized();
-  // The native Firebase files are environment-owned and deliberately do not
-  // live in source control. Initialise when they are present so the bearer
-  // client can exchange a real Firebase ID token with the backend; retaining
-  // the visual fallback keeps design/test builds usable before that setup.
-  try {
-    await Firebase.initializeApp();
-  } on FirebaseException {
-    // Authenticated requests surface their own recoverable error until Firebase
-    // is configured. Do not make the city/map shell unavailable because a
-    // developer has not installed local Firebase credentials yet.
-  } on PlatformException {
-    // Android throws this native exception when google-services.json has not
-    // generated FirebaseOptions resources yet. Treat it like the Firebase
-    // exception above so preview/map-only builds still launch.
+  // Supabase credentials come from --dart-define, so a build without them
+  // still launches: sign-in is unavailable and the map-only shell remains.
+  if (hasSupabaseConfig) {
+    await Supabase.initialize(
+      publishableKey: supabaseAnonKey,
+      // The session holds a refresh token, which is a credential. Keychain and
+      // Keystore are where those belong; the package's default is shared
+      // preferences, which is plain storage.
+      authOptions: const FlutterAuthClientOptions(
+        localStorage: SecureSessionStorage(),
+      ),
+      url: supabaseUrl,
+    );
   }
   runApp(
     ProviderScope(
@@ -47,7 +46,7 @@ class HappynApp extends ConsumerWidget {
     final config = ref.watch(appConfigProvider);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const AppShell(),
+      home: const AuthGate(),
       theme: buildHappynTheme(),
       title: config.appName,
     );

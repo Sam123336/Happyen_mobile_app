@@ -3,9 +3,7 @@
   // `flutter run (toolArgs) lib/main_x.dart (args)`, so --flavor and
   // --dart-define go in toolArgs.
   //
-  // To see the real map, append your Mapbox public token to a config's
-  // toolArgs: "--dart-define=MAPBOX_ACCESS_TOKEN=pk...". This repository is
-  // public, so do not commit one.
+  // The map needs no token: tiles come from OpenFreeMap's public instance.
   "version": "0.2.0",
   "configurations": [
     {

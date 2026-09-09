@@ -82,6 +82,8 @@ class _NightCityScreenState extends ConsumerState<NightCityScreen> {
               ),
             ),
           ),
+          // Last: the tile licence is only satisfied while this is visible.
+          const MapAttribution(),
         ],
       ),
     );

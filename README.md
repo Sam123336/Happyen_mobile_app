@@ -50,8 +50,28 @@ endpoint does not exist yet.
 Both fall back to that placeholder state when the API is unreachable. Startup
 initializes Firebase when real `google-services.json` / `GoogleService-Info.plist`
 files are installed, but intentionally keeps the design shell available without
-them. Until those project credentials are installed and a user signs in, the
-authenticated API answers `401`.
+them — the map needs no Firebase at all.
+
+There is no sign-in screen yet, so `authUserProvider` signs in **anonymously**
+the first time it sees a signed-out app. That is what gets the city its data:
+every protected endpoint needs a Firebase identity, and without one the event
+list is empty and no request is ever sent. Firebase keeps the anonymous account
+across launches, and a real sign-in later upgrades it rather than replacing it.
+The attempt is made once per gateway, so an unconfigured Firebase or a project
+with the anonymous provider switched off leaves the app signed out instead of
+retrying forever.
+
+That means events need exactly two things:
+
+1. `android/app/google-services.json` (and/or `ios/Runner/GoogleService-Info.plist`)
+   downloaded from the Firebase project named by the backend's
+   `FIREBASE_PROJECT_ID`. Both are gitignored. `android/app/build.gradle.kts`
+   applies the `google-services` plugin only when that file exists, so Firebase
+   wires itself up as soon as you drop it in and the build keeps working — map
+   included — while it is absent.
+2. **Anonymous** enabled under Firebase console → Authentication → Sign-in
+   method. Without it Firebase returns `admin-restricted-operation` and the app
+   stays signed out.
 
 `ProviderScope` is created with `retry: retryOnce`: Riverpod 3 otherwise retries
 a failed provider forever, which turns an unreachable API into a permanent
@@ -68,32 +88,35 @@ without checking the limits for the account type.
 
 ## The map
 
-Both city screens render `HappynMap`, which wraps `mapbox_maps_flutter` and is
-the only file allowed to name Mapbox types (ADR 002). The camera carries the
-Stitch diorama's own angles: `rotateX(60deg) rotateZ(-30deg)` is pitch 60 and
-bearing -30. Day and night are one map under two `lightPreset` values, not two
-maps.
+Both city screens render `HappynMap`, which wraps `maplibre_gl` and is the only
+file allowed to name MapLibre types (ADR 002). That boundary is what let the
+basemap move off Mapbox in one file. The camera carries the Stitch diorama's
+own angles: `rotateX(60deg) rotateZ(-30deg)` is tilt 60 and bearing -30. Day
+and night are two OpenFreeMap styles — `liberty` and `dark` — swapped on the
+same map, not two maps.
 
-Supply the public token at build time:
+Nothing is needed at build time. Tiles come from OpenFreeMap's public instance,
+which has no registration, no API key and no card on file, so `flutter run`
+alone gives you the real map:
 
-    flutter run --dart-define=MAPBOX_ACCESS_TOKEN=pk.your_token
+    flutter run -t lib/main_dev.dart
 
-Without it `HappynMap` renders the designed diorama instead, so the app still
-runs and the tests stay hermetic.
+MapLibre is open source, so native builds need no secret Maven or CocoaPods
+credentials either — which is the other reason the basemap is no longer Mapbox.
 
-Native builds need nothing extra on Android: the plugin's Gradle authenticates
-only Mapbox's *snapshots* repository (`SDK_REGISTRY_TOKEN`), and release
-artifacts come from the public one. iOS pulls `MapboxMaps 11.30.0` through
-CocoaPods, which per Mapbox's install guide wants a `~/.netrc` secret token.
+OpenFreeMap's terms require the attribution `OpenFreeMap © OpenMapTiles Data
+from OpenStreetMap`, which `HappynMap` renders over every map. Do not remove it
+while tidying the map UI. Its public instance is donation-funded and carries no
+SLA; it is built to be self-hosted if that ever matters.
 
-Mapbox's terms require their logo and attribution control to stay visible. Both
-are SDK defaults here — do not disable them while tidying the map UI.
+Widget tests have no platform views, so `HappynMap` renders the screen's
+`fallback` diorama under `FLUTTER_TEST` and the tests stay hermetic.
 
 The city screens draw pins from `GET /v1/events/nearby` for the selected
 category chip; tapping one selects it and the centre diorama/detail view shows
-that API occurrence. The same portable GeoJSON event data creates Mapbox
+that API occurrence. The same portable GeoJSON event data creates
 fill-extrusion beacons: coral, taller beacons are live; violet, shorter beacons
-are scheduled. The standard basemap's pitched 3D buildings remain visible
+are scheduled. The Liberty basemap's pitched 3D buildings remain visible
 behind them. The API is polled every 30 seconds instead of opening a socket for
 every map, which suits the Vercel deployment model.
 
@@ -111,4 +134,4 @@ The iOS and Android runner projects use the placeholder identifier `com.happyen.
 - `android/app/build.gradle.kts` (`namespace` and `applicationId`)
 - `android/app/src/main/kotlin/.../MainActivity.kt` (package declaration and directory)
 
-The iOS deployment target is 15.0, the minimum required by `firebase_core`. Neither `GoogleService-Info.plist` nor `google-services.json` is committed; the app builds and runs without them because nothing calls `Firebase.initializeApp()` at startup.
+The iOS deployment target is 15.0, the minimum required by `firebase_core`. Neither `GoogleService-Info.plist` nor `google-services.json` is committed, and both are gitignored; the app builds and runs without them, because `bootstrap` treats a failed `Firebase.initializeApp()` as a recoverable condition and the Android Gradle build only applies the `google-services` plugin when the file is actually present.
