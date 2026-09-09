@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 import 'package:happyn_mobile/core/auth/auth_gateway.dart';
 import 'package:happyn_mobile/core/auth/auth_user.dart';
-import 'package:happyn_mobile/core/auth/firebase_auth_gateway.dart';
+import 'package:happyn_mobile/core/auth/supabase_auth_gateway.dart';
 import 'package:happyn_mobile/core/network/api_client.dart';
 import 'package:happyn_mobile/features/events/data/events_repository.dart';
 import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
@@ -23,11 +23,8 @@ Duration? retryOnce(int retryCount, Object error) =>
     error is ApiException || retryCount > 0 ? null : const Duration(seconds: 1);
 
 final authGatewayProvider = Provider<AuthGateway>((ref) {
-  try {
-    return FirebaseAuthGateway(FirebaseAuth.instance);
-  } on FirebaseException {
-    return const UnavailableAuthGateway();
-  }
+  if (!hasSupabaseConfig) return const UnavailableAuthGateway();
+  return SupabaseAuthGateway(supabase.Supabase.instance.client.auth);
 });
 
 final authUserProvider = StreamProvider<AuthUser?>((ref) {
@@ -126,7 +123,7 @@ final nearbyEventsProvider = FutureProvider.autoDispose
       );
       ref.onDispose(refresh.cancel);
       // Events are protected by ProvisionedUserGuard. Creating the session
-      // first maps a valid Firebase identity to its internal account, avoiding
+      // first maps a valid Supabase identity to its internal account, avoiding
       // the first-city-load race where an otherwise valid token gets a 403.
       final profile = await ref.watch(currentProfileProvider.future);
       if (profile == null) return const <HappynEvent>[];

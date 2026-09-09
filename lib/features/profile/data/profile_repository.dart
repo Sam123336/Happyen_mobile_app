@@ -9,6 +9,16 @@ class ProfileRepository {
   Future<UserProfile> createSession() async =>
       UserProfile.fromJson(await _api.post('/v1/auth/session'));
 
+  /// Whether [username] is still free. Advisory: the claim in [updateProfile]
+  /// is what actually decides, and answers 409 if someone got there first.
+  Future<bool> isUsernameAvailable(String username) async {
+    final result = await _api.get(
+      '/v1/me/username-available',
+      query: {'username': username},
+    );
+    return result['available'] as bool;
+  }
+
   Future<UserProfile> load() async =>
       UserProfile.fromJson(await _api.get('/v1/me/profile'));
 

@@ -7,6 +7,21 @@ enum Flavor { dev, prod }
 /// `--dart-define=HAPPYN_API_ORIGIN=http://192.168.1.10:3000`.
 const _apiOriginOverride = String.fromEnvironment('HAPPYN_API_ORIGIN');
 
+/// Supabase project credentials, supplied at build time:
+/// `--dart-define=SUPABASE_URL=https://xxxx.supabase.co
+///  --dart-define=SUPABASE_ANON_KEY=eyJ...`.
+///
+/// The anon key is a publishable client key, not a secret — it only ever
+/// grants what the project's policies allow. The service-role key must never
+/// reach the app.
+const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
+/// Without both, sign-in is unavailable and the app stays in its map-only
+/// shell rather than failing to launch.
+bool get hasSupabaseConfig =>
+    supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
 class AppConfig {
   const AppConfig({required this.apiOrigin, required this.flavor});
 
