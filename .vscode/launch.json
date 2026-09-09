@@ -4,6 +4,12 @@
   // --dart-define go in toolArgs.
   //
   // The map needs no token: tiles come from OpenFreeMap's public instance.
+  //
+  // Sign-in does need a Supabase project. Append to a config's toolArgs:
+  //   "--dart-define=SUPABASE_URL=https://xxxx.supabase.co",
+  //   "--dart-define=SUPABASE_ANON_KEY=eyJ..."
+  // The anon key is a publishable client key; the service-role key must never
+  // appear here. Without both, the app opens on the map-only shell.
   "version": "0.2.0",
   "configurations": [
     {

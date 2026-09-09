@@ -1,6 +1,6 @@
 # Happyn Mobile
 
-The Flutter client uses a feature-oriented structure with Riverpod. Phase 2 adds an `AuthGateway` boundary, its Firebase implementation, bearer-authenticated API transport, an idempotent session bootstrap provider, and typed profile/privacy models. These pieces can be overridden with fakes in tests and do not initialize Firebase merely by rendering the application shell.
+The Flutter client uses a feature-oriented structure with Riverpod. An `AuthGateway` boundary hides the identity provider (Supabase Auth) behind phone/one-time-code methods, over bearer-authenticated API transport, an idempotent session bootstrap provider, and typed profile/privacy models. These pieces can be overridden with fakes in tests, and rendering the shell initializes nothing.
 
 ## Flavors
 
@@ -47,31 +47,39 @@ the backend's `isLive` status changes without making the user reopen the app.
 Other social/detail content still renders its designed placeholder where an
 endpoint does not exist yet.
 
-Both fall back to that placeholder state when the API is unreachable. Startup
-initializes Firebase when real `google-services.json` / `GoogleService-Info.plist`
-files are installed, but intentionally keeps the design shell available without
-them — the map needs no Firebase at all.
+Both fall back to that placeholder state when the API is unreachable.
 
-There is no sign-in screen yet, so `authUserProvider` signs in **anonymously**
-the first time it sees a signed-out app. That is what gets the city its data:
-every protected endpoint needs a Firebase identity, and without one the event
-list is empty and no request is ever sent. Firebase keeps the anonymous account
-across launches, and a real sign-in later upgrades it rather than replacing it.
-The attempt is made once per gateway, so an unconfigured Firebase or a project
-with the anonymous provider switched off leaves the app signed out instead of
-retrying forever.
+## Signing in
 
-That means events need exactly two things:
+A phone number and a code sent to it. There is no password and no anonymous
+mode: `AuthGate` reads state rather than navigating, so each step moves the user
+on by changing what is true.
 
-1. `android/app/google-services.json` (and/or `ios/Runner/GoogleService-Info.plist`)
-   downloaded from the Firebase project named by the backend's
-   `FIREBASE_PROJECT_ID`. Both are gitignored. `android/app/build.gradle.kts`
-   applies the `google-services` plugin only when that file exists, so Firebase
-   wires itself up as soon as you drop it in and the build keeps working — map
-   included — while it is absent.
-2. **Anonymous** enabled under Firebase console → Authentication → Sign-in
-   method. Without it Firebase returns `admin-restricted-operation` and the app
-   stays signed out.
+    no session            -> SignInScreen      (number, then code)
+    session, no username  -> CreateAccountScreen
+    session and username  -> AppShell
+
+Supabase Auth owns only the credential. The account — display name, username,
+privacy — is Happyen's own, created by `POST /v1/auth/session` on first sight of
+a new identity and completed on the create-account screen. A `null` username is
+what "has not finished signing up" looks like, which is why a half-finished
+signup resumes rather than starting over.
+
+`SecureSessionStorage` puts the session in Keychain / the Android Keystore
+instead of the package's default shared preferences, because it carries a
+refresh token.
+
+Supply the project at build time; the anon key is a publishable client key, not
+a secret, and the service-role key must never be in the app:
+
+    flutter run -t lib/main_dev.dart \
+      --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+      --dart-define=SUPABASE_ANON_KEY=eyJ...
+
+Without both, `AuthGate` keeps the map-only shell rather than trapping the user
+on a sign-in screen that cannot succeed. Two things are needed before a code
+actually arrives: an SMS provider configured in the Supabase project, and — for
+Indian numbers — DLT registration with TRAI.
 
 `ProviderScope` is created with `retry: retryOnce`: Riverpod 3 otherwise retries
 a failed provider forever, which turns an unreachable API into a permanent
@@ -128,10 +136,10 @@ Pins need seeded events — run `pnpm db:seed` in the backend.
 
 ## Native runners
 
-The iOS and Android runner projects use the placeholder identifier `com.happyen.app` on both platforms so the app can be run locally. Confirm the final application/bundle identifier before registering Firebase apps or configuring signing, and change it in three places:
+The iOS and Android runner projects use the placeholder identifier `com.happyen.app` on both platforms so the app can be run locally. Confirm the final application/bundle identifier before configuring signing, and change it in three places:
 
 - `ios/Runner.xcodeproj/project.pbxproj` (`PRODUCT_BUNDLE_IDENTIFIER`)
 - `android/app/build.gradle.kts` (`namespace` and `applicationId`)
 - `android/app/src/main/kotlin/.../MainActivity.kt` (package declaration and directory)
 
-The iOS deployment target is 15.0, the minimum required by `firebase_core`. Neither `GoogleService-Info.plist` nor `google-services.json` is committed, and both are gitignored; the app builds and runs without them, because `bootstrap` treats a failed `Firebase.initializeApp()` as a recoverable condition and the Android Gradle build only applies the `google-services` plugin when the file is actually present.
+The iOS deployment target is 15.0. No native identity-provider config files are needed at all: Supabase is reached over HTTPS with credentials passed as `--dart-define`, so there is nothing to install and nothing to keep out of source control.

@@ -28,7 +28,7 @@ EventsRepository repositoryReturning(
 ) => EventsRepository(
   ApiClient(
     baseUri: Uri.parse('https://api.example.com'),
-    accessToken: () async => 'firebase-token',
+    accessToken: () async => 'access-token',
     httpClient: MockClient((request) async {
       capture(request);
       return http.Response(jsonEncode(occurrences), 200);
