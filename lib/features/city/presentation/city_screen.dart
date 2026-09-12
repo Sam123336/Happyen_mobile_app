@@ -3,18 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:happyn_mobile/core/data/demo_images.dart';
 import 'package:happyn_mobile/core/map/happyn_map.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
-import 'package:happyn_mobile/features/activity/presentation/activity_screen.dart';
-import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
-import 'package:happyn_mobile/features/city/presentation/night_city_screen.dart';
+import 'package:happyn_mobile/features/city/domain/time_machine.dart';
 import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
+import 'package:happyn_mobile/features/events/data/events_repository.dart';
 import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
+import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
+import 'package:happyn_mobile/features/profile/presentation/profile_avatar.dart';
+import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
 
-/// "Living City — Daytime": the isometric city diorama with the Time Machine.
+/// "Living City": the tilted city map with every nearby event standing on it.
+/// The map is the whole page. Nothing about an event is shown here beyond its
+/// pin and name; tapping one leaves for [EventDetailScreen]. Every pin is an
+/// API occurrence — an empty city means the API had none to give.
 class CityScreen extends ConsumerStatefulWidget {
   const CityScreen({super.key});
 
@@ -31,11 +35,9 @@ class _CityScreenState extends ConsumerState<CityScreen> {
     'PETS',
     'SPORTS',
   ];
-  static const _slots = <String>['NOW', '6PM', '9PM', '12AM'];
 
   int _category = 0;
   int _slot = 0;
-  String? _selectedEventId;
 
   /// "FOR YOU" is not a category the API knows; it means no filter.
   EventCategory? get _selectedCategory => switch (_categories[_category]) {
@@ -47,18 +49,12 @@ class _CityScreenState extends ConsumerState<CityScreen> {
     _ => null,
   };
 
-  void _selectSlot(int index) {
-    setState(() => _slot = index);
-    if (index == 0) return;
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute<void>(
-            builder: (_) => NightCityScreen(slot: _slots[index]),
-          ),
-        )
-        .then((_) {
-          if (mounted) setState(() => _slot = 0);
-        });
+  void _openEvent(List<HappynEvent> nearby, String id) {
+    final event = nearby.where((event) => event.id == id).firstOrNull;
+    if (event == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => EventDetailScreen(event: event)),
+    );
   }
 
   @override
@@ -66,14 +62,17 @@ class _CityScreenState extends ConsumerState<CityScreen> {
     // Loading until the device reports a fix; the city centre holds the camera
     // until then, and the map flies to the device once it arrives.
     final centre = ref.watch(searchCentreProvider).value ?? bengaluruCentre;
+    final stops = timeMachineStops(DateTime.now());
+    final until = stops[_slot];
     // An unreachable API leaves the map empty rather than failing the screen.
     final nearby =
-        ref.watch(nearbyEventsProvider(_selectedCategory)).value ??
+        ref
+            .watch(
+              nearbyEventsProvider((category: _selectedCategory, until: until)),
+            )
+            .value ??
         const <HappynEvent>[];
-    final selected = nearby
-        .where((event) => event.id == _selectedEventId)
-        .followedBy(nearby)
-        .firstOrNull;
+    final profile = ref.watch(currentProfileProvider).value;
 
     return Stack(
       children: [
@@ -81,55 +80,28 @@ class _CityScreenState extends ConsumerState<CityScreen> {
           child: HappynMap(
             centre: centre,
             fallback: const _IsometricMap(),
-            onPinTapped: (id) => setState(() => _selectedEventId = id),
+            light: lightAt(until ?? DateTime.now()),
+            onPinTapped: (id) => _openEvent(nearby, id),
             pins: [
               for (final event in nearby)
                 MapPin(
                   id: event.id,
                   isLive: event.isLive,
+                  label: event.title,
                   latitude: event.latitude,
                   longitude: event.longitude,
-                  selected: event.id == selected?.id,
                 ),
             ],
           ),
         ),
-        const Positioned.fill(child: _Fog()),
-        Positioned.fill(
-          child: Center(
-            child: selected == null
-                ? const _EventDiorama(
-                    energy: 'LIVE MAP',
-                    imageUrl: '',
-                    satellites: [],
-                    subtitle: 'Events near you appear here',
-                    title: 'Explore Bengaluru',
-                  )
-                : _EventDiorama(
-                    event: selected,
-                    energy: selected.isLive
-                        ? 'LIVE NOW'
-                        : _categoryLabel(selected.category),
-                    imageUrl: selected.heroImageUrl ?? '',
-                    satellites: const [],
-                    subtitle: selected.isLive
-                        ? 'LIVE • ${selected.venueName}'
-                        : '${selected.startLabel} • ${selected.venueName}',
-                    title: selected.title,
-                  ),
-          ),
-        ),
-        Positioned(left: 0, right: 0, top: 0, child: _Header()),
+        Positioned(left: 0, right: 0, top: 0, child: _Header(profile: profile)),
         Positioned(
           left: 0,
           right: 0,
           top: headerOffset(context, 88),
           child: _CategoryRow(
             categories: _categories,
-            onSelected: (i) => setState(() {
-              _category = i;
-              _selectedEventId = null;
-            }),
+            onSelected: (i) => setState(() => _category = i),
             selected: _category,
           ),
         ),
@@ -138,9 +110,9 @@ class _CityScreenState extends ConsumerState<CityScreen> {
           left: 0,
           right: 0,
           child: _TimeMachine(
-            onSelected: _selectSlot,
+            labels: [for (final stop in stops) stopLabel(stop)],
+            onSelected: (i) => setState(() => _slot = i),
             selected: _slot,
-            slots: _slots,
           ),
         ),
         // Last, and clearing the shell's bottom navigation: the tile licence
@@ -151,11 +123,9 @@ class _CityScreenState extends ConsumerState<CityScreen> {
   }
 }
 
-String _categoryLabel(EventCategory category) =>
-    category == EventCategory.unknown ? 'EVENT' : category.name.toUpperCase();
-
 /// `transform: rotateX(60deg) rotateZ(-30deg) translateZ(-200px) scale(0.8)`
-/// over a 100px grid, with a few extruded blocks.
+/// over a 100px grid, with a few extruded blocks. Covers the frame until the
+/// map style has loaded.
 class _IsometricMap extends StatelessWidget {
   const _IsometricMap();
 
@@ -226,38 +196,11 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(_GridPainter oldDelegate) => false;
 }
 
-/// `radial-gradient(circle at center, transparent 30%, #0B0D12 80%)`
-class _Fog extends StatelessWidget {
-  const _Fog();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // CSS `circle at center` defaults to a farthest-corner radius.
-          final corner =
-              math.sqrt(
-                math.pow(constraints.maxWidth / 2, 2) +
-                    math.pow(constraints.maxHeight / 2, 2),
-              ) /
-              constraints.biggest.shortestSide;
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                colors: const [Color(0x000B0D12), Color(0xFF0B0D12)],
-                radius: corner,
-                stops: const [0.3, 0.8],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _Header extends StatelessWidget {
+  const _Header({required this.profile});
+
+  final UserProfile? profile;
+
   @override
   Widget build(BuildContext context) {
     return Frosted(
@@ -299,7 +242,7 @@ class _Header extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(left: 24),
                       child: Text(
-                        'Exploring within 10 km',
+                        'Exploring within ${nearbyRadiusMeters ~/ 1000} km',
                         style: AppText.labelSm.copyWith(
                           color: AppColors.onSurfaceVariant,
                         ),
@@ -311,31 +254,10 @@ class _Header extends StatelessWidget {
               GestureDetector(
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const ActivityScreen(),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.notifications_outlined,
-                  color: AppColors.onSurfaceVariant,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
                     builder: (_) => const ProfileScreen(),
                   ),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.outlineVariant),
-                    shape: BoxShape.circle,
-                  ),
-                  height: 40,
-                  width: 40,
-                  child: ClipOval(child: NetImage(DemoImages.cityDay[4])),
-                ),
+                child: ProfileAvatar(profile: profile, size: 40),
               ),
             ],
           ),
@@ -380,184 +302,44 @@ class _CategoryRow extends StatelessWidget {
   }
 }
 
-/// 180px circular diorama, dashed 260px orbit ring, 32px satellites.
-/// 180px circular diorama, dashed 260px orbit ring, 32px satellites.
-/// Geometry mirrors the design: mask 180, ring 260, energy pill at top -40,
-/// label block ending 48px below the mask.
-class _EventDiorama extends StatelessWidget {
-  const _EventDiorama({
-    required this.energy,
-    required this.imageUrl,
-    required this.satellites,
-    required this.subtitle,
-    required this.title,
-    this.event,
-  });
-
-  static const _box = 380.0;
-  static const _mask = 180.0;
-  static const _ring = 260.0;
-
-  final String energy;
-  final HappynEvent? event;
-  final String imageUrl;
-  final List<String> satellites;
-  final String subtitle;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    const maskTop = (_box - _mask) / 2;
-    return SizedBox(
-      height: _box,
-      width: _box,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: (_box - _ring) / 2,
-            top: (_box - _ring) / 2,
-            child: OrbitRing(
-              dashed: true,
-              diameter: _ring,
-              duration: const Duration(seconds: 30),
-              ringColor: AppColors.outline.withValues(alpha: 0.3),
-              satellites: [
-                for (var i = 0; i < satellites.length; i++)
-                  (
-                    i / satellites.length,
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: AppColors.background,
-                          width: 2,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            blurRadius: 12,
-                            color: Color(0x80000000),
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                        shape: BoxShape.circle,
-                      ),
-                      height: 32,
-                      width: 32,
-                      child: ClipOval(child: NetImage(satellites[i])),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Positioned(
-            left: maskTop,
-            top: maskTop,
-            child: GestureDetector(
-              onTap: event == null
-                  ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => EventDetailScreen(event: event),
-                      ),
-                    ),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: AppColors.secondary.withValues(alpha: 0.2),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      blurRadius: 40,
-                      color: AppColors.secondary.withValues(alpha: 0.15),
-                    ),
-                  ],
-                  shape: BoxShape.circle,
-                ),
-                height: _mask,
-                width: _mask,
-                child: ClipOval(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      NetImage(imageUrl),
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            colors: [AppColors.deepInk, Color(0x000B0D12)],
-                            end: Alignment.center,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: maskTop - 40,
-            child: Center(
-              child: PulseSlow(
-                child: EnergyPill(
-                  border: Border.all(
-                    color: AppColors.outlineVariant.withValues(alpha: 0.3),
-                  ),
-                  label: energy,
-                  style: AppText.labelMd,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: maskTop + _mask + 48 - 52,
-            child: Column(
-              children: [
-                Text(
-                  title,
-                  style: AppText.headlineSm.copyWith(
-                    letterSpacing: -0.025 * 20,
-                    shadows: const [
-                      Shadow(
-                        blurRadius: 12,
-                        color: Color(0xCC000000),
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: AppText.labelMd.copyWith(color: AppColors.secondary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimeMachine extends StatelessWidget {
+/// A knob you can drag along the track as well as tap. While a finger is
+/// down the knob follows it exactly; on release it settles on the nearest
+/// stop, and only then does the city ask for that hour.
+class _TimeMachine extends StatefulWidget {
   const _TimeMachine({
+    required this.labels,
     required this.onSelected,
     required this.selected,
-    required this.slots,
   });
 
+  final List<String> labels;
   final ValueChanged<int> onSelected;
   final int selected;
-  final List<String> slots;
+
+  @override
+  State<_TimeMachine> createState() => _TimeMachineState();
+}
+
+class _TimeMachineState extends State<_TimeMachine> {
+  static const _inset = 4.0;
+  static const _knob = 16.0;
+
+  /// Knob position in stops while a finger is on the track; null at rest.
+  double? _dragging;
+
+  double _stopAt(double dx, double step) =>
+      ((dx - _inset) / step).clamp(0, widget.labels.length - 1).toDouble();
+
+  void _release() {
+    final landed = _dragging;
+    if (landed == null) return;
+    setState(() => _dragging = null);
+    widget.onSelected(landed.round());
+  }
 
   @override
   Widget build(BuildContext context) {
+    final count = widget.labels.length;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.marginMobile),
       child: Frosted(
@@ -586,83 +368,120 @@ class _TimeMachine extends StatelessWidget {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final step =
-                        (constraints.maxWidth - 8) / (slots.length - 1);
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          top: 4,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(
-                                AppRadius.full,
-                              ),
-                              color: AppColors.surfaceContainerHighest,
-                            ),
-                            height: 4,
-                          ),
-                        ),
-                        for (var i = 0; i < slots.length; i++)
+                        (constraints.maxWidth - 2 * _inset) / (count - 1);
+                    final knob = _dragging ?? widget.selected.toDouble();
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragCancel: _release,
+                      onHorizontalDragEnd: (_) => _release(),
+                      onHorizontalDragStart: (details) => setState(
+                        () =>
+                            _dragging = _stopAt(details.localPosition.dx, step),
+                      ),
+                      onHorizontalDragUpdate: (details) => setState(
+                        () =>
+                            _dragging = _stopAt(details.localPosition.dx, step),
+                      ),
+                      onTapUp: (details) => widget.onSelected(
+                        _stopAt(details.localPosition.dx, step).round(),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
                           Positioned(
-                            left: 4 + i * step - 20,
-                            top: 0,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => onSelected(i),
-                              child: SizedBox(
-                                width: 40,
-                                child: Column(
-                                  children: [
-                                    if (i == selected)
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: AppColors.background,
-                                            width: 2,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              blurRadius: 12,
-                                              color: AppColors.secondary
-                                                  .withValues(alpha: 0.5),
-                                            ),
-                                          ],
-                                          color: AppColors.secondary,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        height: 16,
-                                        width: 16,
-                                      )
-                                    else
-                                      Container(
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.outlineVariant,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        height: 8,
-                                        margin: const EdgeInsets.symmetric(
-                                          vertical: 4,
-                                        ),
-                                        width: 8,
-                                      ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      slots[i],
-                                      style: AppText.labelSm.copyWith(
-                                        color: i == selected
-                                            ? AppColors.secondary
-                                            : AppColors.onSurfaceVariant,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
+                            left: 0,
+                            right: 0,
+                            top: 6,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.full,
+                                ),
+                                color: AppColors.surfaceContainerHighest,
+                              ),
+                              height: 4,
+                            ),
+                          ),
+                          // The stretch already travelled.
+                          Positioned(
+                            left: 0,
+                            top: 6,
+                            width: _inset + knob * step,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.full,
+                                ),
+                                color: AppColors.secondary.withValues(
+                                  alpha: 0.5,
                                 ),
                               ),
+                              height: 4,
                             ),
                           ),
-                      ],
+                          for (var i = 0; i < count; i++)
+                            Positioned(
+                              left: _inset + i * step - 20,
+                              top: 0,
+                              width: 40,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: i <= knob
+                                          ? AppColors.secondary
+                                          : AppColors.outlineVariant,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    height: 8,
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    width: 8,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.labels[i],
+                                    style: AppText.labelSm.copyWith(
+                                      color: i == widget.selected
+                                          ? AppColors.secondary
+                                          : AppColors.onSurfaceVariant,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          AnimatedPositioned(
+                            curve: Curves.easeOut,
+                            duration: Duration(
+                              milliseconds: _dragging == null ? 200 : 0,
+                            ),
+                            left: _inset + knob * step - _knob / 2,
+                            top: 0,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: AppColors.background,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 12,
+                                    color: AppColors.secondary.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                ],
+                                color: AppColors.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                              height: _knob,
+                              width: _knob,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),

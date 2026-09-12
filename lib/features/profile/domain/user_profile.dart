@@ -13,6 +13,7 @@ class UserProfile {
     this.bio,
     this.email,
     this.phoneE164,
+    this.streakDays = 0,
     this.username,
   });
 
@@ -33,6 +34,9 @@ class UserProfile {
       json['profileVisibility'] as String,
     ),
     status: json['status'] as String,
+    // Absent from an API deployed before streaks existed; zero is the truth
+    // there, since nothing was counting.
+    streakDays: json['streakDays'] as int? ?? 0,
     userId: json['userId'] as String,
     username: json['username'] as String?,
   );
@@ -47,6 +51,9 @@ class UserProfile {
   final PrivacyAudience presenceVisibility;
   final PrivacyAudience profileVisibility;
   final String status;
+
+  /// Days in a row the city was opened, counted by the API per phone-local day.
+  final int streakDays;
   final String userId;
   final String? username;
 }

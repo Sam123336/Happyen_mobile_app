@@ -1,80 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:happyn_mobile/core/data/demo_images.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
+import 'package:happyn_mobile/features/auth/presentation/create_account_screen.dart';
+import 'package:happyn_mobile/features/auth/presentation/sign_in_screen.dart';
 import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
-import 'package:happyn_mobile/features/vibe/presentation/vibe_report_screen.dart';
-import 'package:happyn_mobile/features/shell/presentation/app_shell.dart';
+import 'package:happyn_mobile/features/profile/presentation/profile_avatar.dart';
+import 'package:happyn_mobile/flavor.dart';
 
-/// "User Profile — My Verified Journey".
+/// The account as the API knows it: name, handle, bio and streak. Nothing here
+/// is placeholder; a section appears only once its endpoint exists.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  static const _tags = <String>['TECHNO HEAD', 'ART SCENE', 'FOODIE'];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Null until the account is signed in and provisioned; the panels below
-    // keep their designed copy until their own endpoints exist.
-    final profile = ref.watch(currentProfileProvider).value;
+    final profile = ref.watch(currentProfileProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.primaryContainer,
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          ListView(
-            padding: EdgeInsets.only(
-              top: headerOffset(context, 112),
-              bottom: 128,
-            ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.marginMobile,
-                ),
-                child: Column(
-                  children: [
-                    _ProfileIdentity(profile: profile, tags: _tags),
-                    const SizedBox(height: 48),
-                    const _StatsPanel(),
-                    const SizedBox(height: 48),
-                    const _VerifiedMoments(),
-                    const SizedBox(height: 48),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 32),
-                      child: _ShareProfileButton(),
-                    ),
-                  ],
+          Positioned.fill(
+            child: switch (profile) {
+              AsyncData(:final value?) => _Account(profile: value),
+              AsyncData() || AsyncError() => const _SignedOut(),
+              _ => const Center(
+                child: SizedBox(
+                  height: 26,
+                  width: 26,
+                  child: CircularProgressIndicator(
+                    color: AppColors.secondaryFixedDim,
+                    strokeWidth: 2,
+                  ),
                 ),
               ),
-            ],
+            },
           ),
-          const Positioned(left: 0, right: 0, top: 0, child: _ProfileHeader()),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: HappynBottomNav(
-              compactLabels: true,
-              current: HappynTab.people,
-              onChanged: (tab) {
-                ref.read(selectedTabProvider.notifier).select(tab);
-                Navigator.of(context).maybePop();
-              },
-              peopleIcon: Icons.person,
-            ),
-          ),
+          const Positioned(left: 0, right: 0, top: 0, child: _Header()),
         ],
       ),
     );
   }
 }
 
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader();
+class _Header extends StatelessWidget {
+  const _Header();
 
   @override
   Widget build(BuildContext context) {
@@ -93,36 +66,28 @@ class _ProfileHeader extends StatelessWidget {
               GestureDetector(
                 onTap: () => Navigator.of(context).maybePop(),
                 child: Container(
+                  alignment: Alignment.center,
                   decoration: const BoxDecoration(
                     color: AppColors.surfaceVariant,
                     shape: BoxShape.circle,
                   ),
                   height: 40,
                   width: 40,
-                  child: ClipOval(child: NetImage(DemoImages.profile[0])),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    color: AppColors.onSurface,
+                    size: 22,
+                  ),
                 ),
               ),
               Expanded(
                 child: Text(
-                  'HAPPYEN',
-                  style: AppText.headlineMd.copyWith(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    height: 24 / 16,
-                    letterSpacing: -0.05 * 16,
-                  ),
+                  'PROFILE',
+                  style: AppText.labelMd.copyWith(letterSpacing: 0.1 * 14),
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(
-                height: 40,
-                width: 40,
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-              ),
+              const SizedBox(width: 40),
             ],
           ),
         ),
@@ -131,287 +96,132 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _ProfileIdentity extends StatelessWidget {
-  const _ProfileIdentity({required this.profile, required this.tags});
+class _Account extends ConsumerWidget {
+  const _Account({required this.profile});
 
-  final UserProfile? profile;
-  final List<String> tags;
+  final UserProfile profile;
+
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    await ref.read(authGatewayProvider).signOut();
+    // The gate swaps its home for the sign-in screen; this route still sits
+    // on top of it until popped.
+    if (context.mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final username = profile.username;
+    final bio = profile.bio;
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.marginMobile,
+        headerOffset(context, 104),
+        AppSpacing.marginMobile,
+        48,
+      ),
       children: [
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.surfaceVariant, width: 2),
-            shape: BoxShape.circle,
-          ),
-          height: 128,
-          width: 128,
-          child: ClipOval(
-            child: NetImage(profile?.avatarUrl ?? DemoImages.profile[1]),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(profile?.displayName ?? 'Alex Mercer', style: sora16),
-        const SizedBox(height: 8),
+        Center(child: ProfileAvatar(profile: profile, size: 96)),
+        const SizedBox(height: 16),
         Text(
-          profile?.bio ??
-              "Exploring the city's hidden frequencies. Always down for "
-                  'late-night jazz and early-morning coffee.',
-          style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+          profile.displayName,
+          style: AppText.headlineMd,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 40),
-        GestureDetector(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const VibeReportScreen()),
+        if (username != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            '@$username',
+            style: AppText.labelMd.copyWith(color: AppColors.secondary),
+            textAlign: TextAlign.center,
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 20,
-                  color: AppColors.tertiary.withValues(alpha: 0.4),
-                ),
-              ],
-              color: AppColors.surfaceContainerHigh,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.local_fire_department,
-                  color: AppColors.tertiary,
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '12 WEEK STREAK',
-                  style: AppText.bodyMd.copyWith(
-                    color: AppColors.tertiary,
-                    letterSpacing: 0.1 * 16,
-                  ),
-                ),
-              ],
+        ],
+        if (bio != null && bio.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            bio,
+            style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 32),
+        _StreakCard(days: profile.streakDays),
+        const SizedBox(height: 32),
+        AuthButton(
+          busy: false,
+          label: 'EDIT PROFILE',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => CreateAccountScreen(existing: profile),
             ),
           ),
         ),
-        const SizedBox(height: 24),
-        Wrap(
-          alignment: WrapAlignment.center,
-          runSpacing: 12,
-          spacing: 12,
-          children: [
-            for (final tag in tags)
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: AppColors.secondaryFixed.withValues(alpha: 0.2),
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
-                  color: AppColors.secondaryFixed.withValues(alpha: 0.1),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                child: Text(
-                  tag,
-                  style: AppText.bodyMd.copyWith(
-                    color: AppColors.secondaryFixed,
-                    letterSpacing: 0.05 * 16,
-                  ),
-                ),
-              ),
-          ],
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: () => _signOut(context, ref),
+          child: Text(
+            'Sign out',
+            style: AppText.labelMd.copyWith(color: AppColors.onSurfaceVariant),
+          ),
         ),
       ],
     );
   }
 }
 
-class _StatsPanel extends StatelessWidget {
-  const _StatsPanel();
+/// Days in a row the city was opened. The API counts it; this only shows it.
+class _StreakCard extends StatelessWidget {
+  const _StreakCard({required this.days});
 
-  static const _stats = <(String, String)>[
-    ('42', 'VERIFIED MOMENTS'),
-    ('89', 'EVENTS ATTENDED'),
-    ('1.2k', 'FOLLOWERS'),
-  ];
+  final int days;
 
   @override
   Widget build(BuildContext context) {
     return Frosted(
-      blur: 4,
-      border: const Border.symmetric(
-        horizontal: BorderSide(color: AppColors.surfaceVariant),
+      blur: 6,
+      border: Border.all(
+        color: AppColors.outlineVariant.withValues(alpha: 0.3),
       ),
       borderRadius: BorderRadius.circular(AppRadius.xl2),
-      color: AppColors.surfaceContainerLow.withValues(alpha: 0.3),
+      color: AppColors.surfaceContainer.withValues(alpha: 0.4),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.all(20),
         child: Row(
           children: [
-            for (var i = 0; i < _stats.length; i++) ...[
-              if (i > 0)
-                Container(
-                  color: AppColors.surfaceVariant,
-                  height: 48,
-                  width: 1,
-                ),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_stats[i].$1, style: sora16),
-                    Text(
-                      _stats[i].$2,
-                      style: AppText.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                        letterSpacing: 0.05 * 16,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VerifiedMoments extends StatelessWidget {
-  const _VerifiedMoments();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Verified Moments', style: sora16),
-            Text(
-              'VIEW ALL',
-              style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+            const Icon(
+              Icons.local_fire_department,
+              color: AppColors.tertiary,
+              size: 36,
             ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const Row(
-          children: [
+            const SizedBox(width: 16),
             Expanded(
-              child: _MomentTile(
-                height: 150,
-                imageIndex: 2,
-                place: 'Basement Club',
-              ),
-            ),
-            SizedBox(width: AppSpacing.gutter),
-            Expanded(
-              child: _MomentTile(
-                height: 150,
-                imageIndex: 3,
-                place: 'The Velvet Room',
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.gutter),
-        const _MomentTile(
-          caption:
-              'Incredible energy tonight. The installations completely '
-              'transformed the plaza.',
-          height: 250,
-          imageIndex: 4,
-          place: 'Lumina Festival',
-        ),
-      ],
-    );
-  }
-}
-
-class _MomentTile extends StatelessWidget {
-  const _MomentTile({
-    required this.height,
-    required this.imageIndex,
-    required this.place,
-    this.caption,
-  });
-
-  final String? caption;
-  final double height;
-  final int imageIndex;
-  final String place;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.xl2),
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            NetImage(DemoImages.profile[imageIndex]),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xE6131410),
-                    Color(0x33131410),
-                    Color(0x00131410),
-                  ],
-                  end: Alignment.topCenter,
-                  stops: [0, 0.5, 1],
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 16,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
-                      const Icon(
-                        Icons.verified,
-                        color: AppColors.secondary,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          place,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.bodyMd,
+                      Text('$days', style: AppText.displayLg),
+                      const SizedBox(width: 8),
+                      Text(
+                        'DAY CITY STREAK',
+                        style: AppText.labelSm.copyWith(
+                          color: AppColors.tertiary,
+                          letterSpacing: 0.1 * 12,
                         ),
                       ),
                     ],
                   ),
-                  if (caption != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      caption!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.bodyMd.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Open Happyen every day to keep it going.',
+                    style: AppText.labelSm.copyWith(
+                      color: AppColors.onSurfaceVariant,
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -422,44 +232,36 @@ class _MomentTile extends StatelessWidget {
   }
 }
 
-class _ShareProfileButton extends StatelessWidget {
-  const _ShareProfileButton();
+class _SignedOut extends StatelessWidget {
+  const _SignedOut();
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: AppColors.secondary.withValues(alpha: 0.2),
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 15,
-              color: AppColors.secondary.withValues(alpha: 0.3),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ProfileAvatar(profile: null, size: 96),
+            const SizedBox(height: 16),
+            Text(
+              'Sign in to make your profile',
+              style: AppText.headlineSm,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasSupabaseConfig
+                  ? 'Your name, handle and streak live with your account.'
+                  : 'This build was made without Supabase credentials, so '
+                        'sign-in is unavailable.',
+              style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
+              textAlign: TextAlign.center,
             ),
           ],
-          color: AppColors.secondary,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-        child: Text(
-          'SHARE PROFILE',
-          style: AppText.bodyMd.copyWith(
-            color: AppColors.onSecondary,
-            letterSpacing: 0.05 * 16,
-          ),
         ),
       ),
     );
   }
 }
-
-/// Several Stitch screens apply the Sora family without a size utility, so
-/// their headings render at the inherited 16px.
-TextStyle get sora16 => AppText.headlineMd.copyWith(
-  fontSize: 16,
-  fontWeight: FontWeight.w400,
-  height: 24 / 16,
-);

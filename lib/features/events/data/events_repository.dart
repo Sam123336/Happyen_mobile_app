@@ -1,6 +1,10 @@
 import 'package:happyn_mobile/core/network/api_client.dart';
 import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 
+/// How far around the search centre the city looks, in metres. The header
+/// quotes it, so it lives here rather than as a silent default.
+const nearbyRadiusMeters = 5000;
+
 class EventsRepository {
   EventsRepository(this._api);
 
@@ -12,7 +16,7 @@ class EventsRepository {
     EventCategory? category,
     int limit = 50,
     bool includeLive = true,
-    int radiusMeters = 5000,
+    int radiusMeters = nearbyRadiusMeters,
     DateTime? startsBefore,
   }) async {
     final results = await _api.getList(

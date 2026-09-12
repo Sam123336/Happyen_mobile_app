@@ -26,6 +26,8 @@ void main() {
             'presenceVisibility': 'nobody',
             'profileVisibility': 'everyone',
             'status': 'active',
+            'streakDays': 3,
+            'streakLastActiveOn': '2026-09-12',
             'userId': 'user-1',
             'username': null,
           }),
@@ -40,10 +42,14 @@ void main() {
         ),
       );
 
-      final profile = await repository.createSession();
+      final profile = await repository.createSession(
+        now: DateTime(2026, 9, 12, 23, 40),
+      );
 
       expect(captured.url.path, '/v1/auth/session');
       expect(captured.headers['authorization'], 'Bearer access-token');
+      expect(jsonDecode(captured.body), {'localDate': '2026-09-12'});
+      expect(profile.streakDays, 3);
       expect(profile.presenceVisibility, PrivacyAudience.nobody);
       expect(profile.momentsVisibility, PrivacyAudience.friends);
     },

@@ -5,7 +5,6 @@ import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/search/presentation/search_screen.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
-import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
 
 /// "Discover Feed": mood cards over an editorial grid of nearby events.
 class DiscoverScreen extends StatelessWidget {
@@ -272,9 +271,7 @@ class _FeaturedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const EventDetailScreen()),
-      ),
+      onTap: null,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.lg),

@@ -96,7 +96,7 @@ without checking the limits for the account type.
 
 ## The map
 
-Both city screens render `HappynMap`, which wraps `maplibre_gl` and is the only
+The city screen renders `HappynMap`, which wraps `maplibre_gl` and is the only
 file allowed to name MapLibre types (ADR 002). That boundary is what let the
 basemap move off Mapbox in one file. The camera carries the Stitch diorama's
 own angles: `rotateX(60deg) rotateZ(-30deg)` is tilt 60 and bearing -30. Day
@@ -118,21 +118,34 @@ while tidying the map UI. Its public instance is donation-funded and carries no
 SLA; it is built to be self-hosted if that ever matters.
 
 Widget tests have no platform views, so `HappynMap` renders the screen's
-`fallback` diorama under `FLUTTER_TEST` and the tests stay hermetic.
+`fallback` stand-in under `FLUTTER_TEST` and the tests stay hermetic.
 
-The city screens draw pins from `GET /v1/events/nearby` for the selected
-category chip; tapping one selects it and the centre diorama/detail view shows
-that API occurrence. The same portable GeoJSON event data creates
-fill-extrusion beacons: coral, taller beacons are live; violet, shorter beacons
-are scheduled. The Liberty basemap's pitched 3D buildings remain visible
-behind them. The API is polled every 30 seconds instead of opening a socket for
-every map, which suits the Vercel deployment model.
+The city screen is the map and nothing else: pins from `GET /v1/events/nearby`
+for the selected category chip and Time Machine stop, each with its title
+beneath it, and no event content over the map. Tapping a pin or its title
+pushes `EventDetailScreen` for that occurrence. The same portable GeoJSON event
+data creates fill-extrusion beacons: coral, taller beacons are live; violet,
+shorter beacons are scheduled. The API is polled every 30 seconds instead of
+opening a socket for every map, which suits the Vercel deployment model.
 
-Two of the diorama's slots stay honest rather than filled: orbiting avatars are
-empty because friend presence has no endpoint, and the app reports `LIVE NOW`
-rather than inventing an attendance/energy score.
+The Time Machine is a draggable slider: NOW, then the next three three-hour
+marks at least an hour away (`time_machine.dart`), so an afternoon reads NOW ·
+6PM · 9PM · 12AM. Each stop re-queries the API with `starts_before`, and the
+map is lit for the hour being looked at — `liberty` between 6 AM and 6 PM,
+`dark` otherwise. The dark style draws buildings flat, so `HappynMap` extrudes
+the same OpenMapTiles footprints itself after that style loads; the city keeps
+its depth at night.
 
-Pins need seeded events — run `pnpm db:seed` in the backend.
+Nothing on the map, the event page or the profile is placeholder data. An
+empty city means the API returned no occurrences — run `pnpm db:seed` in the
+backend for its local fixtures. The event page shows what the API returns and
+no more: friends going, moments and tickets appear when their endpoints do.
+
+The profile page shows the account's name, handle, bio and city streak — days
+in a row the app was opened, which `POST /v1/auth/session` advances from the
+phone's local date. Editing reuses the sign-up form, including the live
+username availability check; usernames are unique case-insensitively, and the
+API answers 409 if a name is claimed between the check and the save.
 
 ## Native runners
 

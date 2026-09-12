@@ -66,14 +66,16 @@ class MapPin {
     required this.latitude,
     required this.longitude,
     this.isLive = false,
-    this.selected = false,
+    this.label = '',
   });
 
   final String id;
   final bool isLive;
+
+  /// Drawn under the pin, so an event is readable without opening it.
+  final String label;
   final double latitude;
   final double longitude;
-  final bool selected;
 
   @override
   bool operator ==(Object other) =>
@@ -82,10 +84,10 @@ class MapPin {
       other.latitude == latitude &&
       other.longitude == longitude &&
       other.isLive == isLive &&
-      other.selected == selected;
+      other.label == label;
 
   @override
-  int get hashCode => Object.hash(id, latitude, longitude, isLive, selected);
+  int get hashCode => Object.hash(id, latitude, longitude, isLive, label);
 }
 
 /// The living-city basemap.
@@ -125,12 +127,29 @@ class _HappynMapState extends State<HappynMap> {
   static const _eventSourceId = 'happyn-event-worlds';
   static const _eventExtrusionLayerId = 'happyn-event-world-extrusions';
   static const _eventGlowLayerId = 'happyn-event-world-glow';
+  static const _nightBuildingLayerId = 'happyn-building-3d';
+
+  /// The dark style's first label layer after its roads: buildings go beneath
+  /// it, which is where liberty keeps its own `building-3d`.
+  static const _nightLabelLayerId = 'highway_name_other';
 
   MapLibreMapController? _map;
   bool _styleLoaded = false;
 
+  /// Where the camera was last sent. A device fix that lands before the style
+  /// has loaded cannot move the camera yet, so the style callback settles the
+  /// difference rather than leaving the pins a few kilometres off-screen.
+  /// Captured eagerly: a lazy initialiser would read the fix, not the start.
+  late Coordinates _appliedCentre;
+
   String get _styleUri =>
       widget.light == MapLight.day ? _dayStyle : _nightStyle;
+
+  @override
+  void initState() {
+    super.initState();
+    _appliedCentre = widget.centre;
+  }
 
   @override
   void didUpdateWidget(HappynMap oldWidget) {
@@ -144,8 +163,9 @@ class _HappynMapState extends State<HappynMap> {
       unawaited(_syncPins());
       unawaited(_syncEventWorlds());
     }
-    if (oldWidget.centre != widget.centre) {
+    if (oldWidget.centre != widget.centre && _styleLoaded) {
       // The first camera is the city centre; the device fix arrives later.
+      _appliedCentre = widget.centre;
       unawaited(
         _map?.animateCamera(
           CameraUpdate.newLatLng(
@@ -159,55 +179,111 @@ class _HappynMapState extends State<HappynMap> {
 
   void _onMapCreated(MapLibreMapController controller) {
     _map = controller;
-    controller.onCircleTapped.add(_onCircleTapped);
+    // The circle and its label are one target: either opens the event.
+    controller.onCircleTapped.add((circle) => _onPinTapped(circle.data));
+    controller.onSymbolTapped.add((symbol) => _onPinTapped(symbol.data));
   }
 
-  void _onCircleTapped(Circle circle) {
-    final id = circle.data?['pinId'];
+  void _onPinTapped(Map<dynamic, dynamic>? data) {
+    final id = data?['pinId'];
     if (id is String) widget.onPinTapped?.call(id);
   }
 
   Future<void> _onStyleLoaded() async {
+    await _installNightBuildings();
     await _installEventWorldLayers();
     await _syncPins();
+    if (widget.centre != _appliedCentre) {
+      _appliedCentre = widget.centre;
+      await _map?.moveCamera(
+        CameraUpdate.newLatLng(
+          LatLng(widget.centre.latitude, widget.centre.longitude),
+        ),
+      );
+    }
     if (mounted && !_styleLoaded) setState(() => _styleLoaded = true);
   }
 
-  /// Circles rather than symbols: a pin needs no image asset, and the glow is
+  /// Circles rather than icons: a pin needs no image asset, and the glow is
   /// closer to the living-map design than a dropped marker would be. The
-  /// native circle remains the touch target; the GeoJSON layers below carry
-  /// the 3D event world rendered under it.
+  /// native circle and the text label beneath it are the touch targets; the
+  /// GeoJSON layers below carry the 3D event world rendered under them.
   Future<void> _syncPins() async {
     final map = _map;
     if (map == null) return;
 
     await map.clearCircles();
+    await map.clearSymbols();
     if (widget.pins.isEmpty) return;
 
-    await map.addCircles(
-      [
-        for (final pin in widget.pins)
-          CircleOptions(
-            circleBlur: 0.4,
-            circleColor: _hex(
-              pin.isLive ? AppColors.secondary : AppColors.tertiary,
-            ),
-            circleOpacity: 0.9,
-            circleRadius: pin.selected
-                ? 16
-                : pin.isLive
-                ? 12
-                : 9,
-            circleStrokeColor: _hex(AppColors.onSurface),
-            circleStrokeWidth: pin.selected || pin.isLive ? 2 : 0,
-            geometry: LatLng(pin.latitude, pin.longitude),
+    final data = [
+      for (final pin in widget.pins) <String, dynamic>{'pinId': pin.id},
+    ];
+    await map.addCircles([
+      for (final pin in widget.pins)
+        CircleOptions(
+          circleBlur: 0.4,
+          circleColor: _hex(
+            pin.isLive ? AppColors.secondary : AppColors.tertiary,
           ),
-      ],
-      [
-        for (final pin in widget.pins)
-          <String, dynamic>{'isLive': pin.isLive, 'pinId': pin.id},
-      ],
+          circleOpacity: 0.9,
+          circleRadius: pin.isLive ? 14 : 11,
+          circleStrokeColor: _hex(AppColors.onSurface),
+          circleStrokeWidth: 2,
+          geometry: LatLng(pin.latitude, pin.longitude),
+        ),
+    ], data);
+    await map.addSymbols([
+      for (final pin in widget.pins)
+        SymbolOptions(
+          geometry: LatLng(pin.latitude, pin.longitude),
+          textAnchor: 'top',
+          textColor: _hex(AppColors.onSurface),
+          textField: pin.label,
+          textHaloBlur: 1,
+          textHaloColor: _hex(AppColors.background),
+          textHaloWidth: 1.5,
+          textMaxWidth: 9,
+          textOffset: const Offset(0, 1.3),
+          textSize: 12,
+        ),
+    ], data);
+  }
+
+  /// The day style ships `building-3d`; the dark one draws its buildings
+  /// flat, so the city would lose its depth every evening. Extrude the same
+  /// OpenMapTiles footprints ourselves, above the roads and under the labels.
+  Future<void> _installNightBuildings() async {
+    final map = _map;
+    if (map == null || widget.light != MapLight.night) return;
+
+    final buildings = FillExtrusionLayerProperties(
+      fillExtrusionBase: <Object>['get', 'render_min_height'],
+      fillExtrusionColor: '#2A2A30',
+      fillExtrusionHeight: <Object>['get', 'render_height'],
+      fillExtrusionOpacity: 0.9,
+      fillExtrusionVerticalGradient: true,
     );
+    try {
+      await map.addFillExtrusionLayer(
+        'openmaptiles',
+        _nightBuildingLayerId,
+        buildings,
+        belowLayerId: _nightLabelLayerId,
+        minzoom: 14,
+        sourceLayer: 'building',
+      );
+    } on Object {
+      // The style renamed its label layer upstream. Buildings over labels
+      // beat a flat city, and a failure here must not cost the event pins.
+      await map.addFillExtrusionLayer(
+        'openmaptiles',
+        _nightBuildingLayerId,
+        buildings,
+        minzoom: 14,
+        sourceLayer: 'building',
+      );
+    }
   }
 
   /// Adds a small, extruded footprint beneath every event. It uses only
@@ -217,6 +293,12 @@ class _HappynMapState extends State<HappynMap> {
   Future<void> _installEventWorldLayers() async {
     final map = _map;
     if (map == null) return;
+
+    // The SDK installs its own pin layers before this callback runs, so a
+    // layer added now would land on top of them and bury the pins under their
+    // own towers. Slot the event worlds beneath the label layer instead; the
+    // circle layer sits above that, so both stay visible and tappable.
+    final belowPins = map.symbolManager?.layerIds.firstOrNull;
 
     await map.addGeoJsonSource(_eventSourceId, _eventWorldsGeoJson());
 
@@ -234,6 +316,7 @@ class _HappynMapState extends State<HappynMap> {
         fillExtrusionOpacity: 0.8,
         fillExtrusionVerticalGradient: true,
       ),
+      belowLayerId: belowPins,
       enableInteraction: false,
     );
 
@@ -258,6 +341,7 @@ class _HappynMapState extends State<HappynMap> {
           18,
         ],
       ),
+      belowLayerId: belowPins,
       enableInteraction: false,
     );
   }

@@ -31,8 +31,10 @@ class ApiClient {
   Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) =>
       _send('PATCH', path, body: body).then(_expect);
 
-  Future<Map<String, dynamic>> post(String path) =>
-      _send('POST', path).then(_expect);
+  Future<Map<String, dynamic>> post(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) => _send('POST', path, body: body).then(_expect);
 
   T _expect<T>(({Object? body, int status}) response) {
     if (response.body is! T) throw ApiException(response.status, response.body);

@@ -8,11 +8,17 @@ import 'package:happyn_mobile/core/network/api_client.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/features/auth/presentation/sign_in_screen.dart';
+import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
 
 /// Shown once, after the number is verified and before the city opens: the
-/// account exists at this point, but it has no name yet.
+/// account exists at this point, but it has no name yet. The profile page
+/// pushes the same form with [existing] filled in to change either field, so
+/// the username check is the same in both places.
 class CreateAccountScreen extends ConsumerStatefulWidget {
-  const CreateAccountScreen({super.key});
+  const CreateAccountScreen({this.existing, super.key});
+
+  /// The account being edited; null while it is still being made.
+  final UserProfile? existing;
 
   @override
   ConsumerState<CreateAccountScreen> createState() =>
@@ -34,6 +40,18 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   /// rejects what the column would reject anyway.
   static final _usernamePattern = RegExp(r'^[a-z0-9_]{3,30}$');
 
+  bool get _editing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing == null) return;
+    _displayName.text = existing.displayName;
+    _username.text = existing.username ?? '';
+    if (existing.username != null) _check = _NameCheck.free;
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -47,6 +65,11 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
 
   void _onUsernameChanged(String value) {
     _debounce?.cancel();
+    // Your own handle is always yours; the API would report it as taken.
+    if (value == widget.existing?.username) {
+      setState(() => _check = _NameCheck.free);
+      return;
+    }
     if (!_usernamePattern.hasMatch(value)) {
       setState(
         () => _check = value.isEmpty ? _NameCheck.unknown : _NameCheck.invalid,
@@ -85,8 +108,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             displayName: _displayName.text.trim(),
             username: _username.text,
           );
-      // The gate re-reads the profile and moves on to the city.
+      // The gate re-reads the profile and moves on to the city; an edit
+      // returns to the profile it came from.
       ref.invalidate(currentProfileProvider);
+      if (_editing && mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -118,9 +143,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Make it yours',
-                    style: TextStyle(
+                  Text(
+                    _editing ? 'Edit profile' : 'Make it yours',
+                    style: const TextStyle(
                       color: AppColors.onSurface,
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
@@ -128,9 +153,11 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'A name people see, and a handle they can find you by.',
-                    style: TextStyle(
+                  Text(
+                    _editing
+                        ? 'Change how people see and find you.'
+                        : 'A name people see, and a handle they can find you by.',
+                    style: const TextStyle(
                       color: AppColors.onSurfaceVariant,
                       fontSize: 15,
                       height: 1.4,
@@ -189,7 +216,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                   const SizedBox(height: 24),
                   AuthButton(
                     busy: _busy,
-                    label: 'ENTER THE CITY',
+                    label: _editing ? 'SAVE' : 'ENTER THE CITY',
                     onPressed: _ready ? _submit : null,
                   ),
                 ],
@@ -227,7 +254,10 @@ class _CheckHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, text) = switch (check) {
-      _NameCheck.unknown => (AppColors.onSurfaceVariant, '3–30 letters, numbers or _'),
+      _NameCheck.unknown => (
+        AppColors.onSurfaceVariant,
+        '3–30 letters, numbers or _',
+      ),
       _NameCheck.checking => (AppColors.onSurfaceVariant, 'Checking…'),
       _NameCheck.free => (AppColors.tertiaryFixedDim, 'That one is free'),
       _NameCheck.taken => (AppColors.error, 'Already taken'),

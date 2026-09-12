@@ -112,11 +112,15 @@ final eventsRepositoryProvider = Provider<EventsRepository>(
 /// looking at the city.
 const liveEventRefreshInterval = Duration(seconds: 30);
 
-/// Upcoming occurrences around the search centre, optionally one category.
-/// Keyed by category so switching a filter chip is a new request. Rebuilding
-/// this provider every [liveEventRefreshInterval] also refreshes active events.
+/// What the city is asking for: one category chip and one Time Machine stop.
+/// [until] is null for "now"; otherwise only occurrences starting by then.
+typedef NearbyQuery = ({EventCategory? category, DateTime? until});
+
+/// Upcoming occurrences around the search centre for [query]. Keyed by the
+/// record, so a chip or a slider stop is a new request. Rebuilding this
+/// provider every [liveEventRefreshInterval] also refreshes active events.
 final nearbyEventsProvider = FutureProvider.autoDispose
-    .family<List<HappynEvent>, EventCategory?>((ref, category) async {
+    .family<List<HappynEvent>, NearbyQuery>((ref, query) async {
       final refresh = Timer.periodic(
         liveEventRefreshInterval,
         (_) => ref.invalidateSelf(),
@@ -131,8 +135,9 @@ final nearbyEventsProvider = FutureProvider.autoDispose
       return ref
           .watch(eventsRepositoryProvider)
           .nearby(
-            category: category,
+            category: query.category,
             latitude: centre.latitude,
             longitude: centre.longitude,
+            startsBefore: query.until,
           );
     });

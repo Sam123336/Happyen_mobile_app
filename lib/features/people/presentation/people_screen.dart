@@ -5,7 +5,6 @@ import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/activity/presentation/activity_screen.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_screen.dart';
-import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
 
 /// "People — Social Layer": friends orbiting the events they are at.
 class PeopleScreen extends StatelessWidget {
@@ -195,11 +194,7 @@ class _FriendsHub extends StatelessWidget {
               ],
             ),
             GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const EventDetailScreen(),
-                ),
-              ),
+              onTap: null,
               child: Container(
                 decoration: BoxDecoration(
                   boxShadow: [

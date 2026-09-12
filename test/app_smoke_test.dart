@@ -46,8 +46,9 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
 
-    expect(find.text('Verified Moments'), findsOneWidget);
+    expect(find.text('Sign in to make your profile'), findsOneWidget);
   });
 
   testWidgets('the city map shows its diorama until the style loads', (

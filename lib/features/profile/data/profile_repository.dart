@@ -6,8 +6,14 @@ class ProfileRepository {
 
   final ApiClient _api;
 
-  Future<UserProfile> createSession() async =>
-      UserProfile.fromJson(await _api.post('/v1/auth/session'));
+  /// Opens the account for this device, which also counts as opening the city
+  /// today for the streak. The day is the phone's own, not the server's.
+  Future<UserProfile> createSession({DateTime? now}) async =>
+      UserProfile.fromJson(
+        await _api.post('/v1/auth/session', {
+          'localDate': isoDay(now ?? DateTime.now()),
+        }),
+      );
 
   /// Whether [username] is still free. Advisory: the claim in [updateProfile]
   /// is what actually decides, and answers 409 if someone got there first.
@@ -45,4 +51,10 @@ class ProfileRepository {
       if (profile != null) 'profileVisibility': profile.name,
     }),
   );
+}
+
+/// `YYYY-MM-DD` in the device's own calendar, the form the streak API reads.
+String isoDay(DateTime date) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${date.year.toString().padLeft(4, '0')}-${two(date.month)}-${two(date.day)}';
 }

@@ -57,10 +57,14 @@ class HappynEvent {
   final String title;
   final String venueName;
 
-  /// "8:30 PM", the form the city diorama was designed around.
-  String get startLabel {
-    final hour = startAt.hour % 12 == 0 ? 12 : startAt.hour % 12;
-    final minute = startAt.minute.toString().padLeft(2, '0');
-    return '$hour:$minute ${startAt.hour < 12 ? 'AM' : 'PM'}';
-  }
+  /// "8:30 PM", the form the event page was designed around.
+  String get startLabel => clockLabel(startAt);
+
+  String? get endLabel => endAt == null ? null : clockLabel(endAt!);
+}
+
+String clockLabel(DateTime time) {
+  final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+  final minute = time.minute.toString().padLeft(2, '0');
+  return '$hour:$minute ${time.hour < 12 ? 'AM' : 'PM'}';
 }
