@@ -41,6 +41,14 @@ android {
             versionNameSuffix = "-dev"
             resValue("string", "app_name", "Happyen Dev")
         }
+        create("uat") {
+            dimension = "environment"
+            // Same side-by-side reasoning as dev: a tester can hold UAT and
+            // the store build on one device.
+            applicationIdSuffix = ".uat"
+            versionNameSuffix = "-uat"
+            resValue("string", "app_name", "Happyen UAT")
+        }
         create("prod") {
             dimension = "environment"
             resValue("string", "app_name", "Happyen")

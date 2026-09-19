@@ -4,21 +4,28 @@ The Flutter client uses a feature-oriented structure with Riverpod. An `AuthGate
 
 ## Flavors
 
-Two flavors, `dev` and `prod`, differing only in where the app points and what
-it is called. `lib/flavor.dart` holds both, next to the entrypoints that
-pick one:
+Three flavors, `dev`, `uat` and `prod`, differing only in where the app points
+and what it is called. `lib/flavor.dart` holds all three, next to the
+entrypoints that pick one:
 
     flutter run --flavor dev  -t lib/main_dev.dart
+    flutter run --flavor uat  -t lib/main_uat.dart
     flutter run --flavor prod -t lib/main_prod.dart
 
 `flutter run` with no entrypoint gets dev, so prod is never the accident.
 
-On Android the two install side by side: `dev` carries a `.dev` application-id
-suffix and shows as "Happyen Dev". **On iOS `--flavor` does not work yet** —
-that needs `dev`/`prod` Xcode schemes and six build configurations, which is
-Xcode project surgery nobody has done. Until then run iOS with the entrypoint
-alone (`flutter run -t lib/main_dev.dart`): the API origin and app title are
-still right, only the bundle id and launcher name are shared.
+`dev` and `uat` share the origin `http://localhost:3000`; what differs is the
+database behind it. Start the backend with `pnpm start:uat` (which reads
+`.env.uat`) and the same local server answers against the UAT database instead
+of dev's. `prod` points at the Vercel deployment.
+
+On Android all three install side by side: `dev` and `uat` carry `.dev` and
+`.uat` application-id suffixes and show as "Happyen Dev" and "Happyen UAT".
+**On iOS `--flavor` does not work yet** — that needs per-flavor Xcode schemes
+and their build configurations, which is Xcode project surgery nobody has done.
+Until then run iOS with the entrypoint alone
+(`flutter run -t lib/main_dev.dart`): the API origin and app title are still
+right, only the bundle id and launcher name are shared.
 
 `--dart-define=HAPPYN_API_ORIGIN=...` overrides whichever flavor is running,
 for pointing a build at a laptop on the LAN or a preview deployment.
