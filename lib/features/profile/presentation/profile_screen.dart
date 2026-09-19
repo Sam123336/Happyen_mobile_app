@@ -8,7 +8,6 @@ import 'package:happyn_mobile/features/auth/presentation/create_account_screen.d
 import 'package:happyn_mobile/features/auth/presentation/sign_in_screen.dart';
 import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_avatar.dart';
-import 'package:happyn_mobile/flavor.dart';
 
 /// The account as the API knows it: name, handle, bio and streak. Nothing here
 /// is placeholder; a section appears only once its endpoint exists.
@@ -252,10 +251,7 @@ class _SignedOut extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              hasSupabaseConfig
-                  ? 'Your name, handle and streak live with your account.'
-                  : 'This build was made without Supabase credentials, so '
-                        'sign-in is unavailable.',
+              'Your name, handle and streak live with your account.',
               style: AppText.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),

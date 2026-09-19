@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:happyn_mobile/core/auth/secure_session_storage.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/features/auth/presentation/auth_gate.dart';
@@ -15,20 +13,8 @@ Future<void> main() => bootstrap(Flavor.dev);
 /// [AppConfig] the tree is built with.
 Future<void> bootstrap(Flavor flavor) async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Supabase credentials come from --dart-define, so a build without them
-  // still launches: sign-in is unavailable and the map-only shell remains.
-  if (hasSupabaseConfig) {
-    await Supabase.initialize(
-      publishableKey: supabaseAnonKey,
-      // The session holds a refresh token, which is a credential. Keychain and
-      // Keystore are where those belong; the package's default is shared
-      // preferences, which is plain storage.
-      authOptions: const FlutterAuthClientOptions(
-        localStorage: SecureSessionStorage(),
-      ),
-      url: supabaseUrl,
-    );
-  }
+  // Nothing to initialise for sign-in any more: the backend issues the code
+  // and the session, and the refresh token goes straight to the keystore.
   runApp(
     ProviderScope(
       overrides: [appConfigProvider.overrideWithValue(AppConfig.of(flavor))],

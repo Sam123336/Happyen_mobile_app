@@ -1,6 +1,6 @@
 # Happyn Mobile
 
-The Flutter client uses a feature-oriented structure with Riverpod. An `AuthGateway` boundary hides the identity provider (Supabase Auth) behind phone/one-time-code methods, over bearer-authenticated API transport, an idempotent session bootstrap provider, and typed profile/privacy models. These pieces can be overridden with fakes in tests, and rendering the shell initializes nothing.
+The Flutter client uses a feature-oriented structure with Riverpod. An `AuthGateway` boundary hides sign-in behind phone/one-time-code methods, over bearer-authenticated API transport, an idempotent session bootstrap provider, and typed profile/privacy models. These pieces can be overridden with fakes in tests, and rendering the shell initializes nothing.
 
 ## Flavors
 
@@ -66,27 +66,32 @@ on by changing what is true.
     session, no username  -> CreateAccountScreen
     session and username  -> AppShell
 
-Supabase Auth owns only the credential. The account — display name, username,
-privacy — is Happyen's own, created by `POST /v1/auth/session` on first sight of
-a new identity and completed on the create-account screen. A `null` username is
-what "has not finished signing up" looks like, which is why a half-finished
-signup resumes rather than starting over.
+`HappyenAuthGateway` talks to the backend directly — `POST /v1/auth/otp/request`,
+`/verify`, `/refresh`, `/logout`. There is no identity provider in the app and
+nothing to configure at build time: the backend owns the code and the session.
 
-`SecureSessionStorage` puts the session in Keychain / the Android Keystore
-instead of the package's default shared preferences, because it carries a
-refresh token.
+The account — display name, username, privacy — is Happyen's own, created the
+moment a code is verified and completed on the create-account screen. A `null`
+username is what "has not finished signing up" looks like, which is why a
+half-finished signup resumes rather than starting over.
 
-Supply the project at build time; the anon key is a publishable client key, not
-a secret, and the service-role key must never be in the app:
+**Only the refresh token is persisted**, in Keychain / the Android Keystore. The
+access token stays in memory: it expires in minutes, so storing it would add a
+credential on disk without saving a round trip worth having.
 
-    flutter run -t lib/main_dev.dart \
-      --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-      --dart-define=SUPABASE_ANON_KEY=eyJ...
+Refreshes are single-flighted, and that is not an optimisation. The backend
+rotates the refresh token on every use and treats a replayed one as theft,
+revoking every session for the account — so two parallel refreshes would not
+race, they would sign the user out. There is a test asserting three concurrent
+callers produce exactly one refresh request.
 
-Without both, `AuthGate` keeps the map-only shell rather than trapping the user
-on a sign-in screen that cannot succeed. Two things are needed before a code
-actually arrives: an SMS provider configured in the Supabase project, and — for
-Indian numbers — DLT registration with TRAI.
+A refused refresh clears the stored token rather than retrying: it means the
+token was revoked, expired, or flagged as reused, all of which are real
+sign-outs.
+
+Delivery still needs the backend configured — `FAST2SMS_API_KEY` and
+`OTP_HASH_SECRET` — and, for a branded sender on Indian numbers, DLT
+registration with TRAI.
 
 `ProviderScope` is created with `retry: retryOnce`: Riverpod 3 otherwise retries
 a failed provider forever, which turns an unreachable API into a permanent
@@ -162,4 +167,4 @@ The iOS and Android runner projects use the placeholder identifier `com.happyen.
 - `android/app/build.gradle.kts` (`namespace` and `applicationId`)
 - `android/app/src/main/kotlin/.../MainActivity.kt` (package declaration and directory)
 
-The iOS deployment target is 15.0. No native identity-provider config files are needed at all: Supabase is reached over HTTPS with credentials passed as `--dart-define`, so there is nothing to install and nothing to keep out of source control.
+The iOS deployment target is 15.0. No native identity-provider config files are needed at all: sign-in is the app's own backend over HTTPS, so there is nothing to install and nothing to keep out of source control.

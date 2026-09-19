@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 import 'package:happyn_mobile/core/auth/auth_gateway.dart';
 import 'package:happyn_mobile/core/auth/auth_user.dart';
-import 'package:happyn_mobile/core/auth/supabase_auth_gateway.dart';
+import 'package:happyn_mobile/core/auth/happyen_auth_gateway.dart';
 import 'package:happyn_mobile/core/network/api_client.dart';
 import 'package:happyn_mobile/features/events/data/events_repository.dart';
 import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
@@ -22,9 +21,12 @@ import 'package:happyn_mobile/flavor.dart';
 Duration? retryOnce(int retryCount, Object error) =>
     error is ApiException || retryCount > 0 ? null : const Duration(seconds: 1);
 
+/// Sign-in is Happyen's own now: the backend issues the code and the session,
+/// so there is no identity provider to configure in the app.
 final authGatewayProvider = Provider<AuthGateway>((ref) {
-  if (!hasSupabaseConfig) return const UnavailableAuthGateway();
-  return SupabaseAuthGateway(supabase.Supabase.instance.client.auth);
+  return HappyenAuthGateway(
+    baseUri: Uri.parse(ref.watch(appConfigProvider).apiOrigin),
+  );
 });
 
 final authUserProvider = StreamProvider<AuthUser?>((ref) {
@@ -127,8 +129,8 @@ final nearbyEventsProvider = FutureProvider.autoDispose
       );
       ref.onDispose(refresh.cancel);
       // Events are protected by ProvisionedUserGuard. Creating the session
-      // first maps a valid Supabase identity to its internal account, avoiding
-      // the first-city-load race where an otherwise valid token gets a 403.
+      // first maps the identity to its internal account, avoiding the
+      // first-city-load race where an otherwise valid token gets a 403.
       final profile = await ref.watch(currentProfileProvider.future);
       if (profile == null) return const <HappynEvent>[];
       final centre = await ref.watch(searchCentreProvider.future);

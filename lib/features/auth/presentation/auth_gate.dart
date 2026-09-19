@@ -6,7 +6,6 @@ import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/features/auth/presentation/create_account_screen.dart';
 import 'package:happyn_mobile/features/auth/presentation/sign_in_screen.dart';
 import 'package:happyn_mobile/features/shell/presentation/app_shell.dart';
-import 'package:happyn_mobile/flavor.dart';
 
 /// Decides what the app opens on, from state rather than from navigation:
 /// signed out → sign in, signed in but unnamed → create the account, otherwise
@@ -17,11 +16,6 @@ class AuthGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // A build with no Supabase credentials cannot sign anyone in. Rather than
-    // trapping the user on a sign-in screen that can never succeed, keep the
-    // map-only shell that needs no identity.
-    if (!hasSupabaseConfig) return const AppShell();
-
     final authUser = ref.watch(authUserProvider);
 
     return switch (authUser) {
@@ -33,9 +27,9 @@ class AuthGate extends ConsumerWidget {
   }
 }
 
-/// Signed in with Supabase, but Happyen's own account may still be half-built:
-/// the backend row exists from the first `POST /v1/auth/session`, and a null
-/// username is what "has not finished signing up" looks like.
+/// Signed in, but the account may still be half-built: the backend row exists
+/// from the moment the code is verified, and a null username is what "has not
+/// finished signing up" looks like.
 class _ProvisionedGate extends ConsumerWidget {
   const _ProvisionedGate();
 
