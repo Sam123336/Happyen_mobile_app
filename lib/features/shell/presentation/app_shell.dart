@@ -1,54 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:happyn_mobile/core/theme/app_theme.dart';
-import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/city/presentation/city_screen.dart';
-import 'package:happyn_mobile/features/discover/presentation/discover_screen.dart';
-import 'package:happyn_mobile/features/people/presentation/people_screen.dart';
 
-/// Which of the three root tabs the shell is showing.
-class SelectedTab extends Notifier<HappynTab> {
-  @override
-  HappynTab build() => HappynTab.city;
-
-  // ignore: use_setters_to_change_properties
-  void select(HappynTab tab) => state = tab;
-}
-
-final selectedTabProvider = NotifierProvider<SelectedTab, HappynTab>(
-  SelectedTab.new,
-);
-
-/// CITY / DISCOVER / PEOPLE shell with the persistent bottom navigation.
-class AppShell extends ConsumerWidget {
+/// The city, and nothing else.
+///
+/// Discover and People were design shells from Stitch: hardcoded titles and
+/// stock photography, no request to the backend at all. There are no endpoints
+/// behind them either — the API serves health, auth, profile, events and
+/// places, and nothing for moments, people, activity, tickets or vibe. A tab
+/// that can only ever show invented content is worse than a missing tab, so
+/// they are gone until something real backs them.
+///
+/// With one destination there is nothing to navigate between, so the bottom
+/// navigation went with them.
+class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tab = ref.watch(selectedTabProvider);
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: IndexedStack(
-              index: HappynTab.values.indexOf(tab),
-              children: const [CityScreen(), DiscoverScreen(), PeopleScreen()],
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: HappynBottomNav(
-              current: tab,
-              onChanged: (next) =>
-                  ref.read(selectedTabProvider.notifier).select(next),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const CityScreen();
 }

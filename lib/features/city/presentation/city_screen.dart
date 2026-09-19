@@ -9,7 +9,6 @@ import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
 import 'package:happyn_mobile/features/city/domain/time_machine.dart';
 import 'package:happyn_mobile/features/event/presentation/event_detail_screen.dart';
-import 'package:happyn_mobile/features/events/data/events_repository.dart';
 import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 import 'package:happyn_mobile/features/profile/domain/user_profile.dart';
 import 'package:happyn_mobile/features/profile/presentation/profile_avatar.dart';
@@ -64,11 +63,16 @@ class _CityScreenState extends ConsumerState<CityScreen> {
     final centre = ref.watch(searchCentreProvider).value ?? bengaluruCentre;
     final stops = timeMachineStops(DateTime.now());
     final until = stops[_slot];
+    final radiusMeters = ref.watch(nearbyRadiusProvider);
     // An unreachable API leaves the map empty rather than failing the screen.
     final nearby =
         ref
             .watch(
-              nearbyEventsProvider((category: _selectedCategory, until: until)),
+              nearbyEventsProvider((
+                category: _selectedCategory,
+                radiusMeters: radiusMeters,
+                until: until,
+              )),
             )
             .value ??
         const <HappynEvent>[];
@@ -94,7 +98,16 @@ class _CityScreenState extends ConsumerState<CityScreen> {
             ],
           ),
         ),
-        Positioned(left: 0, right: 0, top: 0, child: _Header(profile: profile)),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          child: _Header(
+            onCycleRadius: () => ref.read(nearbyRadiusProvider.notifier).next(),
+            profile: profile,
+            radiusMeters: radiusMeters,
+          ),
+        ),
         Positioned(
           left: 0,
           right: 0,
@@ -197,9 +210,17 @@ class _GridPainter extends CustomPainter {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.profile});
+  const _Header({
+    required this.onCycleRadius,
+    required this.profile,
+    required this.radiusMeters,
+  });
 
+  /// Passed in rather than read from a provider here, so the header stays a
+  /// presentational widget.
+  final VoidCallback onCycleRadius;
   final UserProfile? profile;
+  final int radiusMeters;
 
   @override
   Widget build(BuildContext context) {
@@ -239,12 +260,30 @@ class _Header extends StatelessWidget {
                         ),
                       ],
                     ),
+                    // Tapping steps through the radius choices. The label
+                    // already states the current one, so the change explains
+                    // itself without a separate picker to style.
                     Padding(
                       padding: const EdgeInsets.only(left: 24),
-                      child: Text(
-                        'Exploring within ${nearbyRadiusMeters ~/ 1000} km',
-                        style: AppText.labelSm.copyWith(
-                          color: AppColors.onSurfaceVariant,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onCycleRadius,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Exploring within ${radiusMeters ~/ 1000} km',
+                              style: AppText.labelSm.copyWith(
+                                color: AppColors.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.unfold_more,
+                              color: AppColors.onSurfaceVariant,
+                              size: 14,
+                            ),
+                          ],
                         ),
                       ),
                     ),

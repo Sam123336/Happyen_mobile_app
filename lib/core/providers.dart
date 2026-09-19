@@ -116,7 +116,29 @@ const liveEventRefreshInterval = Duration(seconds: 30);
 
 /// What the city is asking for: one category chip and one Time Machine stop.
 /// [until] is null for "now"; otherwise only occurrences starting by then.
-typedef NearbyQuery = ({EventCategory? category, DateTime? until});
+typedef NearbyQuery = ({
+  EventCategory? category,
+  int radiusMeters,
+  DateTime? until,
+});
+
+/// How far the city looks. Part of [NearbyQuery] rather than read inside the
+/// provider, so changing it is a different key and refetches rather than
+/// quietly reusing the previous radius' results.
+class NearbyRadius extends Notifier<int> {
+  @override
+  int build() => nearbyRadiusMeters;
+
+  /// Steps to the next choice, wrapping back to the closest.
+  void next() {
+    final index = radiusChoicesMeters.indexOf(state);
+    state = radiusChoicesMeters[(index + 1) % radiusChoicesMeters.length];
+  }
+}
+
+final nearbyRadiusProvider = NotifierProvider<NearbyRadius, int>(
+  NearbyRadius.new,
+);
 
 /// Upcoming occurrences around the search centre for [query]. Keyed by the
 /// record, so a chip or a slider stop is a new request. Rebuilding this
@@ -140,6 +162,7 @@ final nearbyEventsProvider = FutureProvider.autoDispose
             category: query.category,
             latitude: centre.latitude,
             longitude: centre.longitude,
+            radiusMeters: query.radiusMeters,
             startsBefore: query.until,
           );
     });

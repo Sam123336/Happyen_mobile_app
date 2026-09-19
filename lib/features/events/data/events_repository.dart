@@ -5,6 +5,10 @@ import 'package:happyn_mobile/features/events/domain/happyn_event.dart';
 /// quotes it, so it lives here rather than as a silent default.
 const nearbyRadiusMeters = 5000;
 
+/// What the header offers when tapped. The API caps `radius_m` at 50km, so
+/// there is no point offering more than it will answer.
+const radiusChoicesMeters = <int>[5000, 10000, 25000, 50000];
+
 class EventsRepository {
   EventsRepository(this._api);
 

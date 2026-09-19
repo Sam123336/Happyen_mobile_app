@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:happyn_mobile/core/data/demo_images.dart';
 import 'package:happyn_mobile/core/providers.dart';
 import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/core/ui/happyn_ui.dart';
@@ -194,11 +193,6 @@ class _SearchHeader extends StatelessWidget {
               Text(
                 'Happyen',
                 style: AppText.displayLg.copyWith(letterSpacing: -0.05 * 40),
-              ),
-              SizedBox(
-                height: 32,
-                width: 32,
-                child: ClipOval(child: NetImage(DemoImages.search[0])),
               ),
             ],
           ),

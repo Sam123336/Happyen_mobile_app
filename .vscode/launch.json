@@ -3,13 +3,12 @@
   // `flutter run (toolArgs) lib/main_x.dart (args)`, so --flavor and
   // --dart-define go in toolArgs.
   //
-  // The map needs no token: tiles come from OpenFreeMap's public instance.
+  // Nothing needs configuring for sign-in: the backend issues the code and the
+  // session, so there are no credentials to pass here. The map needs no token
+  // either, as tiles come from OpenFreeMap's public instance.
   //
-  // Sign-in does need a Supabase project. Append to a config's toolArgs:
-  //   "--dart-define=SUPABASE_URL=https://xxxx.supabase.co",
-  //   "--dart-define=SUPABASE_ANON_KEY=eyJ..."
-  // The anon key is a publishable client key; the service-role key must never
-  // appear here. Without both, the app opens on the map-only shell.
+  // A mobile target only appears in the device picker once one is running:
+  //   flutter emulators --launch Pixel_6
   "version": "0.2.0",
   "configurations": [
     {
@@ -36,7 +35,28 @@
       ]
     },
     {
-      // Points at the deployed backend, which is still failing to build.
+      // UAT is the same local backend as dev, started with `pnpm start:uat` so
+      // it reads the UAT database instead. Installs alongside dev and prod as
+      // com.happyen.app.uat.
+      "name": "Happyen UAT",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_uat.dart",
+      "toolArgs": ["--flavor", "uat"]
+    },
+    {
+      "name": "Happyen UAT (Android emulator)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main_uat.dart",
+      "toolArgs": [
+        "--flavor",
+        "uat",
+        "--dart-define=HAPPYN_API_ORIGIN=http://10.0.2.2:3000"
+      ]
+    },
+    {
+      // Points at the deployed backend on Vercel.
       "name": "Happyen Prod",
       "type": "dart",
       "request": "launch",
@@ -44,7 +64,7 @@
       "toolArgs": ["--flavor", "prod"]
     },
     {
-      // iOS has no dev/prod schemes yet, so --flavor fails there. The entry
+      // iOS has no per-flavor schemes yet, so --flavor fails there. The entry
       // point alone still selects the dev API origin and app title.
       "name": "Happyen Dev (iOS, no flavor)",
       "type": "dart",

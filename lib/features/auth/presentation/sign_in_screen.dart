@@ -202,7 +202,8 @@ class _PhoneStepState extends ConsumerState<_PhoneStep> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const _Heading(
-          subtitle: 'Your number is how you sign in. We send a code to check '
+          subtitle:
+              'Your number is how you sign in. We send a code to check '
               'it is yours.',
           title: 'What is your number?',
         ),
