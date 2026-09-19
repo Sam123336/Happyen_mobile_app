@@ -21,10 +21,11 @@ class AppConfig {
             // `--env-file=.env.uat`, so the origin matches dev while the
             // database behind it does not.
             Flavor.uat => 'http://localhost:3000',
-            // Vercel's stable alias for main. Replace with a custom domain
+            // The project's production URL, not the `-git-main-` branch
+            // alias: that alias only moves on a git push, so a CLI deploy
+            // leaves it serving an older build. Replace with a custom domain
             // when one exists.
-            Flavor.prod =>
-              'https://happyen-backend-git-main-sams-projects-83758424.vercel.app',
+            Flavor.prod => 'https://happyen-backend.vercel.app',
           },
     flavor: flavor,
   );
