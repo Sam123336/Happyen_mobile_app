@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:happyn_mobile/core/theme/app_theme.dart';
 import 'package:happyn_mobile/features/city/presentation/city_screen.dart';
 
 /// The city, and nothing else.
@@ -13,9 +14,14 @@ import 'package:happyn_mobile/features/city/presentation/city_screen.dart';
 ///
 /// With one destination there is nothing to navigate between, so the bottom
 /// navigation went with them.
+///
+/// The [Scaffold] stays. [CityScreen] is a bare [Stack], so without a Material
+/// ancestor every `Text` in it falls back to Flutter's error style and draws
+/// with yellow double underlines.
 class AppShell extends StatelessWidget {
   const AppShell({super.key});
 
   @override
-  Widget build(BuildContext context) => const CityScreen();
+  Widget build(BuildContext context) =>
+      const Scaffold(backgroundColor: AppColors.background, body: CityScreen());
 }
